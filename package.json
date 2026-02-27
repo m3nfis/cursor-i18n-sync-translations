@@ -1,0 +1,207 @@
+{
+  "name": "i18n-sync-translations",
+  "displayName": "i18n Sync Translations",
+  "description": "Automatically detect missing i18n translation keys and sync them across all language files using the Cursor CLI. Supports JSON and Java .properties formats.",
+  "version": "1.0.0",
+  "publisher": "GogusExtremus",
+  "license": "MIT",
+  "icon": "icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/GogusExtremus/i18n-sync-translations"
+  },
+  "keywords": [
+    "i18n",
+    "internationalization",
+    "localization",
+    "translation",
+    "sync",
+    "multilingual",
+    "json",
+    "properties"
+  ],
+  "categories": [
+    "Other",
+    "Programming Languages"
+  ],
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "activationEvents": [
+    "workspaceContains:**/i18n-en.json",
+    "workspaceContains:**/Messages.properties"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "i18nSync.syncTranslations",
+        "title": "i18n: Sync Translations",
+        "icon": "$(globe)"
+      },
+      {
+        "command": "i18nSync.checkMissing",
+        "title": "i18n: Check Missing Translations",
+        "icon": "$(search)"
+      },
+      {
+        "command": "i18nSync.syncTranslationsFromContext",
+        "title": "Sync Translations",
+        "icon": "$(globe)"
+      }
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "i18nSync.syncTranslationsFromContext",
+          "when": "resourceFilename =~ /^i18n-en\\.json$/ || resourceFilename =~ /^Messages\\.properties$/",
+          "group": "i18nSync@1"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "i18nSync.syncTranslations",
+          "when": "resourceFilename =~ /^i18n-en\\.json$/ || resourceFilename =~ /^Messages\\.properties$/",
+          "group": "navigation"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "i18nSync.syncTranslations",
+          "when": "resourceFilename =~ /^i18n-en\\.json$/ || resourceFilename =~ /^Messages\\.properties$/",
+          "group": "i18nSync@1"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "i18n Sync Translations",
+      "properties": {
+        "i18nSync.model": {
+          "type": "string",
+          "default": "gemini-3-flash",
+          "enum": [
+            "gemini-3-flash",
+            "gemini-3-pro",
+            "sonnet-4.5",
+            "sonnet-4.5-thinking",
+            "opus-4.6",
+            "opus-4.6-thinking",
+            "opus-4.5",
+            "opus-4.5-thinking",
+            "gpt-5.3-codex",
+            "gpt-5.3-codex-fast",
+            "gpt-5.3-codex-high",
+            "gpt-5.3-codex-high-fast",
+            "gpt-5.2",
+            "gpt-5.2-high",
+            "gpt-5.2-codex",
+            "gpt-5.2-codex-fast",
+            "gpt-5.2-codex-high",
+            "gpt-5.2-codex-high-fast",
+            "gpt-5.1-codex-max",
+            "gpt-5.1-codex-max-high",
+            "composer-1.5",
+            "composer-1",
+            "grok",
+            "auto"
+          ],
+          "enumDescriptions": [
+            "RECOMMENDED - Gemini 3 Flash (Google) - Best for translations: fast, cheap, strongest multilingual training data",
+            "Gemini 3 Pro (Google) - Higher quality multilingual, slower than Flash. Use for nuanced business language",
+            "Claude 4.5 Sonnet (Anthropic) - Good general model, decent multilingual",
+            "Claude 4.5 Sonnet Thinking (Anthropic) - Overkill for translations",
+            "Claude 4.6 Opus (Anthropic) - Overkill for translations, expensive",
+            "Claude 4.6 Opus Thinking (Anthropic) - Overkill for translations, expensive and slow",
+            "Claude 4.5 Opus (Anthropic)",
+            "Claude 4.5 Opus Thinking (Anthropic)",
+            "GPT-5.3 Codex (OpenAI) - Code-optimized, not ideal for translations",
+            "GPT-5.3 Codex Fast (OpenAI)",
+            "GPT-5.3 Codex High (OpenAI)",
+            "GPT-5.3 Codex High Fast (OpenAI)",
+            "GPT-5.2 (OpenAI)",
+            "GPT-5.2 High (OpenAI)",
+            "GPT-5.2 Codex (OpenAI)",
+            "GPT-5.2 Codex Fast (OpenAI)",
+            "GPT-5.2 Codex High (OpenAI)",
+            "GPT-5.2 Codex High Fast (OpenAI)",
+            "GPT-5.1 Codex Max (OpenAI)",
+            "GPT-5.1 Codex Max High (OpenAI)",
+            "Composer 1.5 (Cursor) - Not recommended for translations",
+            "Composer 1 (Cursor) - Not recommended for translations",
+            "Grok Code (xAI) - Weakest multilingual support",
+            "Auto - Let Cursor pick (may not choose the best model for translations)"
+          ],
+          "markdownDescription": "LLM model to use for translations. **Gemini 3 Flash is strongly recommended** - it has the best multilingual training data (Google), is fast, and cost-effective. Gemini 3 Pro is the runner-up for higher quality on nuanced text."
+        },
+        "i18nSync.contextWindowSize": {
+          "type": "number",
+          "default": 5,
+          "minimum": 0,
+          "maximum": 20,
+          "description": "Number of adjacent sibling keys (before and after) to include as translation context. These existing translations help the LLM understand the domain and tone. Set to 0 to disable context inference."
+        },
+        "i18nSync.batchSize": {
+          "type": "number",
+          "default": 40,
+          "minimum": 5,
+          "maximum": 100,
+          "description": "Number of translation keys to send per batch to the Cursor CLI."
+        },
+        "i18nSync.concurrentLimit": {
+          "type": "number",
+          "default": 2,
+          "minimum": 1,
+          "maximum": 5,
+          "description": "Number of concurrent translation batches to process simultaneously."
+        },
+        "i18nSync.maxRetries": {
+          "type": "number",
+          "default": 3,
+          "minimum": 1,
+          "maximum": 10,
+          "description": "Maximum number of retry attempts for failed translation batches."
+        },
+        "i18nSync.translationTone": {
+          "type": "string",
+          "default": "formal business",
+          "description": "The tone/style to use for translations (e.g., 'formal business', 'casual', 'technical')."
+        },
+        "i18nSync.cursorCliPath": {
+          "type": "string",
+          "default": "cursor",
+          "description": "Path to the Cursor CLI executable. Use 'cursor' if it's in your PATH."
+        },
+        "i18nSync.autoSync": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "**Background auto-sync.** When enabled, watches `i18n-en.json` / `Messages.properties` for changes and automatically translates missing keys in the background every few minutes. No prompts, no popups - just silently keeps translations in sync."
+        },
+        "i18nSync.autoSyncIntervalMinutes": {
+          "type": "number",
+          "default": 3,
+          "minimum": 1,
+          "maximum": 30,
+          "markdownDescription": "How often (in minutes) the auto-sync checks for missing translations after detecting a file change. The timer resets on each save, so rapid edits are debounced."
+        },
+        "i18nSync.debugMode": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable verbose debug logging in the output channel."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "eslint src --ext ts",
+    "package": "npx @vscode/vsce package --no-dependencies"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^3.2.0",
+    "typescript": "^5.3.0"
+  }
+}
