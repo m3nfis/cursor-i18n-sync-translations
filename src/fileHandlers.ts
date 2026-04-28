@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import { I18N_JSON_FILE_REGEX, MESSAGES_PROPERTIES_FILE_REGEX } from './localeUtils';
 
 /**
  * Describes a detected i18n project layout (JSON or Java Properties).
@@ -281,9 +282,9 @@ export function detectProjectConfig(i18nDir: string): ProjectConfig | null {
       mode: 'json',
       enFilePath: jsonPath,
       baseEnFileName: 'i18n-en.json',
-      langFileRegex: /^i18n-([a-zA-Z-]+)\.json$/,
+      langFileRegex: I18N_JSON_FILE_REGEX,
       getLang: (fileName) => {
-        const match = fileName.match(/^i18n-([a-zA-Z-]+)\.json$/);
+        const match = I18N_JSON_FILE_REGEX.exec(fileName);
         return match ? match[1] : '';
       },
       getLangFilePath: (lang) => path.join(i18nDir, `i18n-${lang}.json`),
@@ -297,9 +298,9 @@ export function detectProjectConfig(i18nDir: string): ProjectConfig | null {
       mode: 'properties',
       enFilePath: propsPath,
       baseEnFileName: 'Messages.properties',
-      langFileRegex: /^Messages_([a-zA-Z-]+)\.properties$/,
+      langFileRegex: MESSAGES_PROPERTIES_FILE_REGEX,
       getLang: (fileName) => {
-        const match = fileName.match(/^Messages_([a-zA-Z-]+)\.properties$/);
+        const match = MESSAGES_PROPERTIES_FILE_REGEX.exec(fileName);
         return match ? match[1] : '';
       },
       getLangFilePath: (lang) => path.join(i18nDir, `Messages_${lang}.properties`),

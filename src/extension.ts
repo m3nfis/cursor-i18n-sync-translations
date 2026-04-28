@@ -4,8 +4,9 @@ import * as path from 'path';
 import { detectProjectConfig, ProjectConfig } from './fileHandlers';
 import { translateKeyBatch, createBatches, TranslationBatch, getConfig as getTranslationConfig } from './translationEngine';
 import { StateManager, SyncState } from './stateManager';
-import { findMissingKeys, mergeSingleLanguage } from './syncUtils';
+import { findMissingKeys, mergeSingleLanguage, loadLangContextWithFallback } from './syncUtils';
 import { initAutoSync, disposeAutoSync } from './autoSync';
+import { I18N_JSON_FILE_REGEX } from './localeUtils';
 
 // ---------------------------------------------------------------------------
 // Module-level state
@@ -63,7 +64,7 @@ export function deactivate(): void {
 // Status bar
 // ---------------------------------------------------------------------------
 
-const I18N_FILE_PATTERN = /^i18n-[a-zA-Z-]+\.json$/;
+const I18N_FILE_PATTERN = I18N_JSON_FILE_REGEX;
 
 function showStatusBarIfRelevant(): void {
   const editor = vscode.window.activeTextEditor;
@@ -340,9 +341,16 @@ async function runSync(i18nDir: string): Promise<void> {
             );
             updateStatusBar('running', `${job.lang.toUpperCase()} batch ${job.id}`);
 
-            // Lazy-load language data
+            // Lazy-load language data; long locales fall back to the short
+            // locale's translations so the model has consistent context.
             if (!(job.lang in langDataCache)) {
-              langDataCache[job.lang] = config.readFile(config.getLangFilePath(job.lang));
+              const loaded = loadLangContextWithFallback(config, job.lang);
+              langDataCache[job.lang] = loaded.data;
+              if (loaded.fellBackTo) {
+                outputChannel.appendLine(
+                  `  [Batch ${job.id} | ${job.lang.toUpperCase()}] Using ${loaded.fellBackTo.toUpperCase()} as context fallback (no existing ${job.lang} file)`
+                );
+              }
             }
 
             const result = await translateKeyBatch(

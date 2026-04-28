@@ -3,7 +3,7 @@ import * as path from 'path';
 import { detectProjectConfig } from './fileHandlers';
 import { translateKeyBatch, createBatches, getConfig as getTranslationConfig } from './translationEngine';
 import { StateManager } from './stateManager';
-import { findMissingKeys, mergeSingleLanguage } from './syncUtils';
+import { findMissingKeys, mergeSingleLanguage, loadLangContextWithFallback } from './syncUtils';
 
 // ---------------------------------------------------------------------------
 // Module-level state
@@ -175,9 +175,15 @@ async function runBackgroundSync(i18nDir: string): Promise<void> {
             `  [Auto-Sync] [${job.lang.toUpperCase()}] Translating ${keyCount} key(s)...`
           );
 
-          // Lazy-load language data
+          // Lazy-load language data with short-locale fallback for context.
           if (!(job.lang in langDataCache)) {
-            langDataCache[job.lang] = config.readFile(config.getLangFilePath(job.lang));
+            const loaded = loadLangContextWithFallback(config, job.lang);
+            langDataCache[job.lang] = loaded.data;
+            if (loaded.fellBackTo) {
+              outputChannel.appendLine(
+                `  [Auto-Sync] [${job.lang.toUpperCase()}] Using ${loaded.fellBackTo.toUpperCase()} as context fallback`
+              );
+            }
           }
 
           const result = await translateKeyBatch(

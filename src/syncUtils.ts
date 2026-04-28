@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { ProjectConfig } from './fileHandlers';
+import { isLongLocale, getShortLocale } from './localeUtils';
 
 /** Result of scanning language files for missing translation keys. */
 export interface MissingKeysResult {
@@ -87,4 +88,35 @@ export function mergeSingleLanguage(
   }
 
   return newKeyCount;
+}
+
+/**
+ * Loads the existing translations for `lang` to use as **context** when
+ * prompting the LLM. If `lang` is a long locale (e.g. `pt-BR`) and its file
+ * does not exist (or is empty), falls back to the short locale's file
+ * (e.g. `pt`) so the model gets consistent tone/vocabulary.
+ *
+ * Returns `{ data: null, fellBackTo: null }` when neither file exists —
+ * the LLM will then translate from scratch using only the English source.
+ */
+export function loadLangContextWithFallback(
+  config: ProjectConfig,
+  lang: string
+): { data: Record<string, string> | null; fellBackTo: string | null } {
+  const direct = config.readFile(config.getLangFilePath(lang));
+  if (direct && Object.keys(direct).length > 0) {
+    return { data: direct, fellBackTo: null };
+  }
+
+  if (isLongLocale(lang)) {
+    const shortLang = getShortLocale(lang);
+    if (shortLang && shortLang !== lang) {
+      const fallback = config.readFile(config.getLangFilePath(shortLang));
+      if (fallback && Object.keys(fallback).length > 0) {
+        return { data: fallback, fellBackTo: shortLang };
+      }
+    }
+  }
+
+  return { data: direct, fellBackTo: null };
 }

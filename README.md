@@ -11,6 +11,7 @@ A  Cursor extension that automatically detects missing i18n translation keys and
 - **Batch translation** - Uses the Cursor CLI agent to translate in efficient batches.
 - **Resumable** - If interrupted, progress is saved and can be resumed.
 - **Dual format support** - Works with both JSON (`i18n-en.json`) and Java Properties (`Messages.properties`).
+- **Long locale (BCP 47) support** - Recognises region- and script-suffixed locales such as `i18n-pt-BR.json`, `i18n-fr-CA.json`, `i18n-es-419.json`, `i18n-zh-Hans.json`, `i18n-zh-Hant.json`, `i18n-en-GB.json`. The LLM is prompted with the resolved language name (e.g. `Brazilian Portuguese`), and missing long-locale files fall back to the short locale's translations as context.
 - **Background auto-sync** - Optional file watcher that silently translates new keys on a debounced timer.
 - **Context menu integration** - Right-click on `i18n-en.json` in the explorer to sync.
 - **Editor title button** - Globe icon appears when editing i18n files.
@@ -35,16 +36,25 @@ npm run compile
 npm run package
 
 # Install the resulting .vsix file
-cursor --install-extension i18n-sync-translations-1.0.0.vsix
+cursor --install-extension i18n-sync-translations-1.1.0.vsix
 # Or: Cmd+Shift+P > "Extensions: Install from VSIX..."
 ```
 
 ## How to Use
 
+## Translation Team Docs
+
+- Full flow guide (Markdown): [`docs/translation-flow-guide.md`](docs/translation-flow-guide.md)
+- Full flow guide (Rich HTML): [`docs/translation-flow-guide.html`](docs/translation-flow-guide.html)
+
 ### From the File Explorer (right-click)
 
 1. Right-click on `i18n-en.json` (or `Messages.properties`).
-2. Select **"Sync Translations"**.
+2. Select **"Sync Translations"** at the bottom of the menu.
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/m3nfis/cursor-i18n-sync-translations/main/docs/images/sync-translations-context-menu.jpg" alt="Right-click context menu in Cursor showing the Sync Translations entry highlighted at the bottom" width="320" />
+</p>
 
 ### From the Editor Title Bar
 
@@ -152,6 +162,47 @@ npm run watch
 
 # Debug: Press F5 in Cursor/VS Code to launch Extension Development Host
 ```
+
+## Testing
+
+The repository includes a small Vite + React fixture app under `test-app/`
+whose `src/locales/` is treated as the *source of truth* for an end-to-end
+regression test of the extension itself.
+
+```bash
+cd test-app
+npm install              # one-time
+npm run i18n:e2e         # ~50s
+```
+
+What `npm run i18n:e2e` does:
+
+1. Snapshots the current `i18n-{en,es,fr,zh}.json` files.
+2. Deletes a controlled set of 5 keys per language (different keys per language).
+3. Runs the **real, compiled extension code** (`out/translationEngine.js`,
+   `out/syncUtils.js`, `out/contextInference.js`, `out/localeUtils.js`)
+   with `vscode` stubbed — the same pipeline the editor invokes — calling
+   `gemini-3-flash` via the Cursor CLI.
+4. Validates structural integrity (key parity, `{placeholder}` preservation,
+   HTML tag preservation) using the project's `validate-translations.mjs`.
+5. Scores each translated key against the source-of-truth as `EXACT`,
+   `LENIENT` (case/whitespace-insensitive), or `DIFFERENT`, and prints a
+   diff for anything that isn't exact.
+6. **Restores** the source-of-truth files via a `try`/`finally` guard —
+   the working tree is unchanged after the run.
+
+Exit code: `0` if structural validation passed and no batch failed; `1`
+otherwise.
+
+The `DIFFERENT` count is informational, not a failure. AI translations
+naturally use synonyms ("Consultar disponibilidad" vs. "Ver disponibilidad"),
+better idiomatic forms ("24/7" → French "24h/24, 7j/7"), or more
+typographically-correct punctuation (full-width Chinese parentheses) that
+all read as correct to a native speaker even though they don't match the
+fixture string byte-for-byte.
+
+See [`test-app/README.md`](test-app/README.md) for the full test command
+inventory and a sample run.
 
 ## Architecture
 

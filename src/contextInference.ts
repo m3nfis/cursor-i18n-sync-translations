@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { getLanguageDisplayName } from './localeUtils';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -211,10 +212,19 @@ export function buildYamlPrompt(
     yamlBody += `\n`;
   }
 
+  const languageName = getLanguageDisplayName(targetLang);
+  // Include the BCP 47 code only when it adds info beyond the resolved name
+  // (e.g. `Latin American Spanish (es-419)`). For plain `de` -> `German`,
+  // the code adds nothing.
+  const targetDescriptor =
+    languageName.toLowerCase() === targetLang.toLowerCase()
+      ? targetLang
+      : `${languageName} (${targetLang})`;
+
   return [
     'IMPORTANT: Do NOT use any tools, do NOT modify any files, do NOT read any files. Only respond with plain text output.',
     '',
-    `Translate the English strings below to ${targetLang}. Use a ${translationTone} tone.`,
+    `Translate the English strings below to ${targetDescriptor}. Use a ${translationTone} tone.`,
     '',
     'Rules:',
     '- Preserve HTML tags, placeholders like {{variable}} or {variable}, and technical/brand terms',

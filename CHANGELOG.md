@@ -5,6 +5,15 @@ All notable changes to the **i18n Sync Translations** extension will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-04-28
+
+### Added
+
+- **BCP 47 long locale support** - the file matcher now accepts language + region/script subtags, including numeric M.49 region codes. Recognised filename forms include `i18n-en-GB.json`, `i18n-pt-BR.json`, `i18n-fr-CA.json`, `i18n-fr-FR.json`, `i18n-es-ES.json`, `i18n-es-419.json`, `i18n-zh-Hans.json`, `i18n-zh-Hant.json`, plus brand-new short locales such as `i18n-pl.json`. Same scheme works for Java Properties (`Messages_pt-BR.properties` etc.).
+- **Human-readable target language in prompts** - the LLM now receives `Translate the English strings below to Brazilian Portuguese (pt-BR)` instead of the raw locale code, which materially improves output quality for regional variants and script subtags. Resolution uses `Intl.DisplayNames`.
+- **Short-locale fallback for context** - when translating into a long locale whose file does not yet exist (e.g. first-ever sync of `pt-BR`), the existing short-locale file (`pt`) is loaded as context so the model produces translations consistent with the language's established tone and vocabulary. Logged as `Using PT as context fallback (no existing pt-BR file)`.
+- **End-to-end test harness** - `test-app/` contains a Vite + React fixture whose locale files are the source of truth; `npm run i18n:e2e` from inside it deletes a controlled subset of keys, drives the real compiled extension code (with `vscode` stubbed) through the actual Cursor CLI + `gemini-3-flash`, validates structural integrity, scores per-key against the truth, and restores files in `finally`. Provides a single-command regression check before releases or prompt changes.
+
 ## [1.0.1] - 2026-04-28
 
 ### Fixed
