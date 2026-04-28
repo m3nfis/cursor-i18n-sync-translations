@@ -5,6 +5,12 @@ All notable changes to the **i18n Sync Translations** extension will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] - 2026-04-28
+
+### Fixed
+
+- **Echoed key prefix in translations** - the parser now strips a mirrored `key: "value"` payload that some models (notably Gemini variants) occasionally return instead of the bare translated value. Previously this leaked the key back into the stored value (e.g. `"upload.file.limit.error": "upload.file.limit.error: \"Es kann nur eine Datei hochgeladen werden.\""`). Surrounding quotes and `\"` / `\\` escapes are also unwrapped when an echo is detected; legitimate values that start or end with quote characters are left untouched.
+
 ## [1.0.0] - 2025-01-01
 
 ### Added

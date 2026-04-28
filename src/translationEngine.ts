@@ -300,7 +300,8 @@ function executeCli(
 
       const translatedBatch: Record<string, string> = {};
       for (let i = 0; i < keyOrder.length; i++) {
-        translatedBatch[keyOrder[i]] = translatedValues[i];
+        const key = keyOrder[i];
+        translatedBatch[key] = sanitizeTranslatedValue(translatedValues[i], key);
       }
 
       resolve(translatedBatch);
@@ -379,4 +380,53 @@ export function createBatches(
 
 function delay(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function escapeRegExp(s: string): string {
+  return s.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
+}
+
+/**
+ * The prompt feeds each item to the LLM as `N. key: "value"`. Some models
+ * (notably Gemini variants) occasionally mirror that exact format in their
+ * reply instead of returning only the translated value, producing lines like
+ * `N. key: "translated"`. After the leading `N. ` is stripped we may still
+ * be left with `key: "translated"` (or even `key: translated`).
+ *
+ * This helper detects that pattern for a known target key and returns the
+ * inner translated string, also unwrapping a single layer of surrounding
+ * matching quotes and unescaping `\"` / `\\` if present.
+ */
+export function sanitizeTranslatedValue(rawValue: string, key: string): string {
+  let value = rawValue;
+
+  const keyEcho = new RegExp(String.raw`^${escapeRegExp(key)}\s*:\s*`);
+  if (keyEcho.test(value)) {
+    value = value.replace(keyEcho, '');
+    value = unwrapMatchingQuotes(value);
+  }
+
+  return value;
+}
+
+/**
+ * If `value` is wrapped in a matching pair of `"..."` or `'...'`, remove the
+ * outer pair and unescape `\"`, `\'`, and `\\`. Leaves the string untouched
+ * otherwise so values that legitimately start/end with quote characters are
+ * preserved.
+ */
+function unwrapMatchingQuotes(value: string): string {
+  if (value.length < 2) {
+    return value;
+  }
+  const first = value[0];
+  const last = value[value.length - 1];
+  if ((first === '"' || first === "'") && first === last) {
+    const inner = value.slice(1, -1);
+    return inner
+      .replaceAll(String.raw`\"`, '"')
+      .replaceAll(String.raw`\'`, "'")
+      .replaceAll(String.raw`\\`, '\\');
+  }
+  return value;
 }
