@@ -1,6 +1,7 @@
 out/
 node_modules/
 *.vsix
+!releases/*.vsix
 .vscode-test/
 .translations.tmp.json
 .cursor/hooks/last-package.log
