@@ -1,0 +1,17 @@
+{
+  "pageTitle": "Book your stay at \"Seabreeze Hotel\"",
+  "heroSubtitle": "Ocean-view rooms from <strong>{price}</strong> per night.",
+  "guestLabel": "Guests",
+  "nightsLabel": "Nights",
+  "languagePickerLabel": "Language",
+  "checkInLabel": "Check-in",
+  "checkOutLabel": "Check-out",
+  "ctaButton": "Check availability",
+  "trustNote": "<em>Free cancellation</em> up to 24 hours before arrival.",
+  "roomSummary": "{nights} nights for {guests} guests",
+  "breakfastToggle": "Include breakfast (+\"{fee}\")",
+  "footerHelp": "Need help? Chat with \"Luna\" 24/7.",
+  "roomOptions": "Our portfolio comprises <strong>Standard</strong>, <strong>Deluxe Ocean-View</strong>, and <strong>Penthouse Suite</strong> categories, each governed by occupancy ceilings, blackout windows, and minimum-stay thresholds that vary by season and yield class.",
+  "legalDisclaimer": "By proceeding, the Guest acknowledges that all displayed tariffs are <em>indicative and non-binding</em> until a written confirmation is issued, and that \"Seabreeze Hotel\" reserves the right to amend, suspend, or rescind any reservation under applicable jurisdiction and force-majeure provisions.",
+  "cancellationTerms": "Refunds equal to <strong>{refundPct}</strong> of the prepaid amount are remitted within {refundDays} business days, exclusive of weekends, statutory holidays, and any non-refundable surcharges levied by third-party providers or payment intermediaries."
+}

@@ -1,0 +1,17 @@
+{
+  "pageTitle": "Réservez votre séjour au \"Seabreeze Hotel\"",
+  "heroSubtitle": "Chambres vue mer à partir de <strong>{price}</strong> par nuit.",
+  "guestLabel": "Voyageurs",
+  "nightsLabel": "Nuits",
+  "languagePickerLabel": "Langue",
+  "checkInLabel": "Arrivée",
+  "checkOutLabel": "Départ",
+  "ctaButton": "Vérifier les disponibilités",
+  "trustNote": "<em>Annulation gratuite</em> jusqu'à 24 heures avant l'arrivée.",
+  "roomSummary": "{nights} nuits pour {guests} voyageurs",
+  "breakfastToggle": "Ajouter le petit-déjeuner (+\"{fee}\")",
+  "footerHelp": "Besoin d'aide ? Discutez avec \"Luna\" 24/7.",
+  "roomOptions": "Notre portefeuille comprend les catégories <strong>Standard</strong>, <strong>Deluxe Vue Mer</strong> et <strong>Suite Penthouse</strong>, chacune soumise à des plafonds d'occupation, des périodes de blocage et des seuils de séjour minimum qui varient selon la saison et la classe tarifaire.",
+  "legalDisclaimer": "En poursuivant, le Client reconnaît que tous les tarifs affichés sont <em>indicatifs et non contractuels</em> jusqu'à l'émission d'une confirmation écrite, et que \"Seabreeze Hotel\" se réserve le droit de modifier, suspendre ou annuler toute réservation conformément à la juridiction applicable et aux clauses de force majeure.",
+  "cancellationTerms": "Les remboursements équivalant à <strong>{refundPct}</strong> du montant prépayé sont traités sous {refundDays} jours ouvrés, hors week-ends, jours fériés officiels et tous frais non remboursables prélevés par des prestataires tiers ou des intermédiaires de paiement."
+}

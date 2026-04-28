@@ -1,0 +1,17 @@
+{
+  "pageTitle": "预订您在 \"Seabreeze Hotel\" 的住宿",
+  "heroSubtitle": "海景客房每晚 <strong>{price}</strong> 起。",
+  "guestLabel": "住客人数",
+  "nightsLabel": "晚数",
+  "languagePickerLabel": "语言",
+  "checkInLabel": "入住",
+  "checkOutLabel": "退房",
+  "ctaButton": "查看可订房间",
+  "trustNote": "<em>免费取消</em>，最晚至入住前 24 小时。",
+  "roomSummary": "{nights} 晚，{guests} 位住客",
+  "breakfastToggle": "包含早餐 (+\"{fee}\")",
+  "footerHelp": "需要帮助？与 \"Luna\" 24/7 聊天。",
+  "roomOptions": "我们的房型包括 <strong>标准房</strong>、<strong>豪华海景房</strong> 和 <strong>顶层套房</strong>，每种房型均受入住人数上限、不可预订期及最短入住天数的限制，且依季节和价位等级而变化。",
+  "legalDisclaimer": "继续即表示客人确认所显示的房价均为 <em>仅供参考且不具约束力</em>，须以书面确认为准；\"Seabreeze Hotel\" 保留依据适用司法辖区及不可抗力条款修改、暂停或取消任何预订的权利。",
+  "cancellationTerms": "相当于预付金额 <strong>{refundPct}</strong> 的退款将在 {refundDays} 个工作日内处理，不含周末、法定节假日及第三方供应商或支付中介收取的任何不可退还附加费。"
+}

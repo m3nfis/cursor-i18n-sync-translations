@@ -1,0 +1,17 @@
+{
+  "pageTitle": "Reserva tu estancia en \"Seabreeze Hotel\"",
+  "heroSubtitle": "Habitaciones con vista al mar desde <strong>{price}</strong> por noche.",
+  "guestLabel": "Huéspedes",
+  "nightsLabel": "Noches",
+  "languagePickerLabel": "Idioma",
+  "checkInLabel": "Llegada",
+  "checkOutLabel": "Salida",
+  "ctaButton": "Ver disponibilidad",
+  "trustNote": "<em>Cancelación gratis</em> hasta 24 horas antes de la llegada.",
+  "roomSummary": "{nights} noches para {guests} huéspedes",
+  "breakfastToggle": "Incluir desayuno (+\"{fee}\")",
+  "footerHelp": "¿Necesitas ayuda? Chatea con \"Luna\" 24/7.",
+  "roomOptions": "Nuestro portafolio incluye las categorías <strong>Standard</strong>, <strong>Deluxe Vista al Mar</strong> y <strong>Suite Penthouse</strong>, cada una sujeta a límites de ocupación, ventanas de bloqueo y umbrales de estancia mínima que varían según la temporada y la clase de tarifa.",
+  "legalDisclaimer": "Al continuar, el Huésped reconoce que todas las tarifas mostradas son <em>indicativas y no vinculantes</em> hasta que se emita una confirmación por escrito, y que \"Seabreeze Hotel\" se reserva el derecho de modificar, suspender o rescindir cualquier reserva conforme a la jurisdicción aplicable y a las disposiciones de fuerza mayor.",
+  "cancellationTerms": "Los reembolsos equivalentes al <strong>{refundPct}</strong> del importe prepagado se procesan en un plazo de {refundDays} días hábiles, excluidos fines de semana, festivos oficiales y cualquier recargo no reembolsable aplicado por proveedores externos o intermediarios de pago."
+}
