@@ -304,6 +304,14 @@
   <ul>
     <li><strong>Cursor</strong> (or VS Code 1.85+) installed.</li>
     <li>The <strong>Cursor CLI</strong> on your <code>PATH</code>. Verify with <code>cursor --version</code>. If missing, open Cursor and run <kbd>Cmd</kbd> <kbd>Shift</kbd> <kbd>P</kbd> &rarr; <em>"Cursor: Install &lsquo;cursor&rsquo; command in PATH"</em>.</li>
+    <li>
+      <strong>An authenticated Cursor CLI session</strong> <span class="pill">required, one-time</span>.
+      The extension shells out to <code>cursor agent --print &hellip;</code>, which refuses to run until you have logged in. From any terminal:
+      <pre><code>cursor login</code></pre>
+      This opens a browser to sign in to your Cursor account. Confirm auth works with a quick smoke test:
+      <pre><code>cursor agent --print --model gemini-3-flash "say hi"</code></pre>
+      A one-line reply means you're done. An auth / login prompt means you still need to run <code>cursor login</code>. Re-run it whenever your session expires or you switch Cursor accounts.
+    </li>
     <li>An i18n project with an <code>i18n-en.json</code> (or <code>Messages.properties</code>) source file.</li>
   </ul>
 
@@ -403,6 +411,9 @@
 
   <h3>"Cursor CLI not found"</h3>
   <p>Run <kbd>Cmd</kbd> <kbd>Shift</kbd> <kbd>P</kbd> &rarr; <em>"Cursor: Install &lsquo;cursor&rsquo; command in PATH"</em>, then restart your terminal and Cursor. Verify with <code>cursor --version</code>.</p>
+
+  <h3>First sync fails with an authentication / login error</h3>
+  <p>The Cursor CLI needs to be signed in before <code>cursor agent</code> will respond. Run <code>cursor login</code> in any terminal, complete the browser sign-in, then verify with <code>cursor agent --print --model gemini-3-flash "say hi"</code>. Re-run <code>cursor login</code> whenever your session expires.</p>
 
   <h3>"Quota exceeded" mid-sync</h3>
   <p>You hit your API quota for the day. Progress is saved automatically &mdash; reopen tomorrow and pick <strong>"Resume"</strong> when prompted. To slow burn rate: lower <code>concurrentLimit</code> to 1.</p>

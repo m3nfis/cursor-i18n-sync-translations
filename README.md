@@ -146,6 +146,15 @@ This produces translations that are consistent with the existing terminology in 
 
 - **Cursor IDE** with the CLI available in your PATH
   - In Cursor: `Cmd+Shift+P` > "Install 'cursor' command in PATH"
+  - Verify with `cursor --version`
+- **Authenticated Cursor CLI** *(one-time, required before first sync)*
+  - Run `cursor login` in your terminal. This opens a browser to sign in to your Cursor account. Without this step the extension's first translation batch fails with an auth error from `cursor agent` (the underlying command this extension shells out to).
+  - Quick smoke test that auth works:
+    ```bash
+    cursor agent --print --model gemini-3-flash "say hi"
+    ```
+    If you see a one-line reply, the extension is good to go. If you see an authentication / login prompt, you still need to run `cursor login`.
+  - Re-run `cursor login` whenever your session expires or you switch Cursor accounts.
 - Node.js (for building from source)
 
 ## Development
