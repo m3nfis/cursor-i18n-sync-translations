@@ -3,3 +3,5 @@ node_modules/
 *.vsix
 .vscode-test/
 .translations.tmp.json
+.cursor/hooks/last-package.log
+.cursor/hooks/.repackage.*

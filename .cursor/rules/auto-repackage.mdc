@@ -1,0 +1,51 @@
+---
+description: Auto-repackages the VSCode extension (.vsix) on source edits via a project hook
+alwaysApply: true
+---
+
+# Auto-Repackage Hook
+
+This project has a Cursor hook at `.cursor/hooks.json` that automatically
+re-packages the extension whenever an agent (or Tab) edits a packaged file.
+
+## Triggers
+
+The hook fires on `afterFileEdit` / `afterTabFileEdit` for paths matching:
+
+- `src/**/*.ts`
+- `package.json`, `tsconfig.json`, `.vscodeignore`
+- `README.md`, `CHANGELOG.md`, `LICENSE`, `icon.png`
+
+For anything else (translation JSONs, docs in subfolders, etc.) the hook
+exits as a no-op.
+
+## What it runs
+
+`npm run package` — which chains `vscode:prepublish` → `tsc -p ./` → `vsce
+package --no-dependencies`. The result is a fresh `.vsix` at the repo
+root, overwriting the previous one.
+
+## Behavior
+
+- Runs **detached in the background**, never blocks the agent or the editor.
+- **Debounced** by `I18N_SYNC_REPACKAGE_DEBOUNCE_MS` (default 1500 ms) so a
+  burst of edits coalesces into a single rebuild.
+- **Single-flight** via `flock` on `.cursor/hooks/.repackage.lock` so two
+  packagers never run concurrently.
+- All output (stdout + stderr) is appended to
+  `.cursor/hooks/last-package.log`. Tail it to see the latest build:
+
+  ```bash
+  tail -f .cursor/hooks/last-package.log
+  ```
+
+## Agent guidance
+
+- **Do not** manually run `npm run package` after editing source files — the
+  hook will do it. Only run it manually when you need to inspect the build
+  immediately or when working outside an agent edit (e.g. after a manual
+  human edit).
+- When introducing a new packaged asset, update the `in_scope` matcher in
+  `.cursor/hooks/repackage.sh` so edits to it also trigger a repackage.
+- To temporarily disable: rename `.cursor/hooks.json` to
+  `.cursor/hooks.json.disabled` and reload Cursor.
