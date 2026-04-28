@@ -3,6 +3,7 @@
 .cursor/**
 docs/**
 test-app/**
+releases/**
 src/**
 .gitignore
 .gitlab-ci.yml
