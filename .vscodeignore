@@ -1,6 +1,8 @@
 .vscode/**
 .vscode-test/**
 .cursor/**
+docs/**
+test-app/**
 src/**
 .gitignore
 .gitlab-ci.yml
