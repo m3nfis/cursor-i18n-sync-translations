@@ -1,0 +1,406 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>i18n Sync - Full Translation Flow</title>
+  <meta name="description" content="Complete functional and technical walkthrough of i18n Sync Translations, including context inference internals and practical examples." />
+  <style>
+    :root {
+      --bg: #f7f8fb;
+      --surface: #ffffff;
+      --ink: #1f2937;
+      --muted: #5b6472;
+      --line: #d8dee9;
+      --primary: #2f6df6;
+      --primary-ink: #ffffff;
+      --good: #0b8a4e;
+      --warn: #9f5f00;
+      --shadow: 0 10px 30px rgba(20, 31, 56, 0.08);
+      --radius: 14px;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0f1522;
+        --surface: #151e30;
+        --ink: #e7ecf7;
+        --muted: #a5b0c4;
+        --line: #2b3852;
+        --primary: #7fa3ff;
+        --primary-ink: #10192c;
+        --good: #45d493;
+        --warn: #f0bc6f;
+        --shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+      }
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+      background: radial-gradient(circle at top right, rgba(127, 163, 255, 0.1), transparent 40%), var(--bg);
+      color: var(--ink);
+      line-height: 1.6;
+    }
+
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 32px 20px 72px;
+    }
+
+    .hero {
+      background: linear-gradient(135deg, rgba(47, 109, 246, 0.1), rgba(47, 109, 246, 0.02));
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 26px;
+      box-shadow: var(--shadow);
+    }
+
+    .pill {
+      display: inline-block;
+      background: var(--primary);
+      color: var(--primary-ink);
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      font-size: 34px;
+      margin: 12px 0 8px;
+      line-height: 1.2;
+    }
+    h2 {
+      font-size: 25px;
+      margin: 34px 0 12px;
+    }
+    h3 {
+      font-size: 18px;
+      margin: 18px 0 10px;
+    }
+    p {
+      margin: 8px 0 12px;
+      color: var(--ink);
+    }
+    .muted { color: var(--muted); }
+
+    .grid {
+      display: grid;
+      gap: 16px;
+      margin-top: 16px;
+    }
+    .grid.two {
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    }
+    .grid.three {
+      grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 16px 18px;
+    }
+
+    ul {
+      margin: 8px 0 0;
+      padding-left: 22px;
+    }
+    li { margin-bottom: 7px; }
+
+    .kpi {
+      font-size: 13px;
+      color: var(--muted);
+      margin-top: 10px;
+      border-top: 1px dashed var(--line);
+      padding-top: 10px;
+    }
+
+    .callout {
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      padding: 12px 14px;
+      background: rgba(47, 109, 246, 0.06);
+      margin-top: 12px;
+    }
+    .callout.good {
+      background: rgba(11, 138, 78, 0.1);
+      border-color: rgba(11, 138, 78, 0.3);
+    }
+    .callout.warn {
+      background: rgba(159, 95, 0, 0.1);
+      border-color: rgba(159, 95, 0, 0.3);
+    }
+
+    code {
+      background: rgba(127, 163, 255, 0.13);
+      border: 1px solid rgba(127, 163, 255, 0.35);
+      border-radius: 6px;
+      padding: 1px 6px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-size: 0.93em;
+    }
+
+    pre {
+      margin: 10px 0;
+      padding: 12px;
+      background: rgba(6, 12, 24, 0.85);
+      color: #e8eefb;
+      border-radius: 10px;
+      overflow-x: auto;
+      font-size: 13px;
+      border: 1px solid #2a344d;
+    }
+
+    .mermaid {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 10px;
+      margin: 12px 0 4px;
+      box-shadow: var(--shadow);
+      overflow-x: auto;
+    }
+
+    .steps ol {
+      margin: 0;
+      padding-left: 22px;
+    }
+    .steps li {
+      margin-bottom: 10px;
+      padding: 8px 10px;
+      border-radius: 8px;
+      background: rgba(127, 163, 255, 0.08);
+      border: 1px solid rgba(127, 163, 255, 0.25);
+    }
+
+    .footer {
+      margin-top: 28px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+  <main class="container">
+    <section class="hero">
+      <span class="pill">Translation Team Guide</span>
+      <h1>i18n Sync Translations: Complete Flow + Context Inference</h1>
+      <p class="muted">
+        This document explains what happens at every stage of translation sync, from missing key detection to final file merge.
+        It is written for non-technical users, with technical depth where it matters.
+      </p>
+      <div class="callout">
+        <strong>Core idea:</strong> the extension translates only missing keys, uses nearby sibling keys as context,
+        validates model output, retries safely, and merges results without overwriting existing translated entries.
+      </div>
+    </section>
+
+    <section>
+      <h2>1) End-to-End Process Map</h2>
+      <div class="mermaid">
+flowchart TD
+    A[Sync Trigger\nCommand / Context Menu / Auto-Sync] --> B[Detect i18n format]
+    B --> C[Read English source]
+    C --> D[Find missing keys per language]
+    D --> E{Any missing keys?}
+    E -- No --> F[Stop: everything in sync]
+    E -- Yes --> G[Create batches by language]
+    G --> H[Infer context for each key]
+    H --> I[Build numbered prompt with commented context]
+    I --> J[Cursor CLI translation call]
+    J --> K[Parse and validate output]
+    K --> L{Valid and complete?}
+    L -- No --> M[Retry with backoff / fail-safe]
+    M --> J
+    L -- Yes --> N[Merge into target files]
+    N --> O[Summary and status update]
+      </div>
+    </section>
+
+    <section class="grid two">
+      <article class="card">
+        <h3>Human-friendly flow</h3>
+        <div class="steps">
+          <ol>
+            <li>Start sync manually (or auto-sync triggers after save debounce).</li>
+            <li>Tool checks if project uses JSON files or Java properties files.</li>
+            <li>English keys are compared against each language file.</li>
+            <li>Only missing keys are queued for translation.</li>
+            <li>Context is gathered from neighboring sibling keys.</li>
+            <li>Cursor CLI returns numbered translated lines.</li>
+            <li>Results are verified and merged back into files.</li>
+          </ol>
+        </div>
+      </article>
+
+      <article class="card">
+        <h3>Where quality comes from</h3>
+        <ul>
+          <li><strong>Context window:</strong> nearby same-prefix keys improve terminology consistency.</li>
+          <li><strong>Existing translations first:</strong> if available, existing target values are used as context.</li>
+          <li><strong>Strict output parser:</strong> expects <code>N. translated value</code> lines only.</li>
+          <li><strong>Safe merge:</strong> existing translated keys are not replaced in missing-key mode.</li>
+          <li><strong>Retry system:</strong> temporary CLI/model failures recover automatically.</li>
+        </ul>
+        <p class="kpi">Key settings: <code>contextWindowSize</code>, <code>batchSize</code>, <code>concurrentLimit</code>, <code>maxRetries</code>.</p>
+      </article>
+    </section>
+
+    <section>
+      <h2>2) Context Inference - Technical Deep Dive</h2>
+      <div class="grid two">
+        <article class="card">
+          <h3>How keys are grouped</h3>
+          <p>A key prefix is all segments before the last dot. Example:</p>
+          <pre><code>settings.agreements.select_file
+prefix = settings.agreements</code></pre>
+          <p>Context uses sibling keys with the same prefix to stay domain-consistent.</p>
+        </article>
+
+        <article class="card">
+          <h3>How context is selected</h3>
+          <ul>
+            <li>Scan ordered English key list for nearest siblings (before/after).</li>
+            <li>Take up to <code>contextWindowSize</code> on each side.</li>
+            <li>Exclude keys currently being translated in this batch.</li>
+            <li>Use target-language value if present, otherwise fallback to English.</li>
+          </ul>
+        </article>
+      </div>
+
+      <div class="mermaid">
+sequenceDiagram
+    participant Batch as Missing batch
+    participant EN as English dataset
+    participant Target as Existing target lang file
+    participant CI as Context inference
+    participant Prompt as Prompt builder
+    participant CLI as Cursor CLI model
+
+    Batch->>CI: Each missing key
+    EN->>CI: Ordered siblings by same prefix
+    Target-->>CI: Existing translated sibling values
+    CI->>Prompt: contextBefore + contextAfter + key
+    Prompt->>CLI: Numbered keys + commented context
+    CLI-->>Prompt: N. translated value
+    Prompt-->>Batch: key -> translated string mapping
+      </div>
+
+      <div class="callout good">
+        <strong>Long locale fallback:</strong> when translating a locale like <code>pt-BR</code>, if that file has no useful context yet,
+        the engine can load <code>pt</code> as context fallback (for consistency), while still generating output for <code>pt-BR</code>.
+      </div>
+    </section>
+
+    <section>
+      <h2>3) Prompt Shape (what the model receives)</h2>
+      <div class="card">
+        <p>Context is added as comments and must not be translated. Actual work items are numbered lines:</p>
+<pre><code># --- Section: settings.agreements ---
+# Context (already translated siblings for reference, DO NOT translate these):
+#   settings.agreements.title: Vereinbarungen
+#   settings.agreements.download_document: Dokument herunterladen
+#   ...
+# Translate the following:
+1. settings.agreements.select_file: "Select file"
+2. settings.agreements.uploading: "Uploading file..."</code></pre>
+        <p class="muted">Expected output format: <code>1. ...</code>, <code>2. ...</code> only, no extra prose.</p>
+      </div>
+    </section>
+
+    <section>
+      <h2>4) Three Realistic Translation Examples</h2>
+      <div class="grid three">
+        <article class="card">
+          <h3>Example A: Checkout CTA</h3>
+          <p><strong>Missing key:</strong> <code>checkout.payment.submit = "Pay now"</code></p>
+          <p><strong>Context:</strong> <code>checkout.payment.title</code>, <code>checkout.payment.processing</code>, <code>checkout.payment.saved_card</code></p>
+          <p><strong>Likely Spanish output:</strong> <code>Pagar ahora</code></p>
+          <p class="muted">Context keeps translation aligned to payment UI style.</p>
+        </article>
+
+        <article class="card">
+          <h3>Example B: Legal action text</h3>
+          <p><strong>Missing key:</strong> <code>settings.agreements.accept_terms = "Accept terms"</code></p>
+          <p><strong>Context:</strong> legal/agreement siblings already translated in German.</p>
+          <p><strong>Likely German output:</strong> <code>Bedingungen akzeptieren</code></p>
+          <p class="muted">Formal legal neighborhood influences wording choice.</p>
+        </article>
+
+        <article class="card">
+          <h3>Example C: Long locale cold start</h3>
+          <p><strong>Target file:</strong> <code>i18n-pt-BR.json</code> has no history yet.</p>
+          <p><strong>Fallback context:</strong> <code>i18n-pt.json</code></p>
+          <p><strong>Missing key:</strong> <code>profile.notifications.muted = "Muted"</code></p>
+          <p><strong>Possible output:</strong> <code>Silenciadas</code></p>
+          <p class="muted">In this namespace, a plural/feminine pt-BR form can be more natural than a generic singular label.</p>
+        </article>
+      </div>
+
+      <div class="mermaid">
+flowchart LR
+    A[Translate pt-BR batch] --> B{pt-BR context exists?}
+    B -- Yes --> C[Use pt-BR context]
+    B -- No --> D[Use pt context fallback]
+    C --> E[Prompt for pt-BR]
+    D --> E
+    E --> F[Output merged into pt-BR file]
+      </div>
+    </section>
+
+    <section class="grid two">
+      <article class="card">
+        <h2>5) Reliability and Guardrails</h2>
+        <ul>
+          <li>CLI path is validated before execution.</li>
+          <li>Translation call timeout prevents hangs.</li>
+          <li>Response count mismatch is treated as invalid output.</li>
+          <li>Exponential retries for recoverable failures.</li>
+          <li>Fatal quota errors stop cleanly with user-visible message.</li>
+          <li>Cancellation and resumable progress are supported.</li>
+        </ul>
+      </article>
+
+      <article class="card">
+        <h2>6) Suggested Team Operating Model</h2>
+        <ul>
+          <li>Use consistent <code>translationTone</code> across teams/projects.</li>
+          <li>Keep <code>contextWindowSize</code> between 3 and 7 for most products.</li>
+          <li>Review legal/compliance copy manually even after automation.</li>
+          <li>Use auto-sync for day-to-day velocity, manual sync for release QA checks.</li>
+          <li>Audit glossary-heavy areas (billing, tax, contracts) periodically.</li>
+        </ul>
+        <div class="callout warn">
+          If terminology drifts, first adjust context quality and source key organization before changing model settings.
+        </div>
+      </article>
+    </section>
+
+    <p class="footer">
+      Generated documentation for internal Translation team enablement.
+    </p>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <script>
+    const isDarkMode =
+      typeof globalThis.matchMedia === "function" &&
+      globalThis.matchMedia("(prefers-color-scheme: dark)").matches;
+    mermaid.initialize({
+      startOnLoad: true,
+      securityLevel: "loose",
+      theme: isDarkMode ? "dark" : "default",
+      flowchart: { curve: "basis" }
+    });
+  </script>
+</body>
+</html>
