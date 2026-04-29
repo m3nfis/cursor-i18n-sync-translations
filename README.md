@@ -36,9 +36,9 @@ npm run compile
 npm run package
 
 # Install the resulting .vsix file
-cursor --install-extension i18n-sync-translations-1.3.1.vsix
+cursor --install-extension i18n-sync-translations-1.3.2.vsix
 # Or, with the new CLI:
-agent --install-extension i18n-sync-translations-1.3.1.vsix
+agent --install-extension i18n-sync-translations-1.3.2.vsix
 # Or: Cmd+Shift+P > "Extensions: Install from VSIX..."
 ```
 
@@ -106,13 +106,13 @@ Open Settings (`Cmd+,` / `Ctrl+,`) and search for **"i18n Sync"**:
 | `i18nSync.model` | `gemini-3-flash` | LLM model for translations. **Gemini 3 Flash is strongly recommended** - best multilingual data, fast, cheap. |
 | `i18nSync.contextWindowSize` | `5` | Number of adjacent sibling keys to include as context (0 to disable). |
 | `i18nSync.batchSize` | `40` | Keys per translation batch. |
-| `i18nSync.concurrentLimit` | `2` | Concurrent batch limit. |
+| `i18nSync.concurrentLimit` | `3` | Concurrent batch limit. Bumped from 2 in v1.3.2 — backend latency dominates, so extra parallelism amortises wait time across languages. |
 | `i18nSync.maxRetries` | `3` | Retry attempts per batch. |
 | `i18nSync.translationTone` | `formal business` | Translation tone/style. |
 | `i18nSync.autoSync` | `false` | Background auto-sync: watches the EN file and translates silently on a timer. |
 | `i18nSync.autoSyncIntervalMinutes` | `3` | Minutes to wait after a file change before auto-syncing (1-30). |
 | `i18nSync.cursorCliPath` | `auto` | Path/command for the Cursor CLI. `auto` prefers the new `agent` binary and falls back to the legacy `cursor` binary. Set to `agent`, `cursor`, or an absolute path to override. |
-| `i18nSync.cliTimeoutSeconds` | `90` | How long to wait for a single CLI batch before giving up. Bump for slow networks / large batches. |
+| `i18nSync.cliTimeoutSeconds` | `180` | How long to wait for a single CLI batch before giving up. Bumped from 90 in v1.3.2 — Cursor CLI / model backend latency frequently exceeds 90s for a single call, even with a small prompt. |
 | `i18nSync.debugMode` | `false` | Verbose logging — see [Verbose / Debug Logging](#verbose--debug-logging). |
 
 ### Background Auto-Sync

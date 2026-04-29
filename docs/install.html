@@ -332,7 +332,7 @@ cursor agent --print --model gemini-3-flash "say hi"</code></pre>
 
   <h2 id="download">1. Download the VSIX</h2>
   <div class="step">
-    <h3><span class="num">1</span> Grab <code>i18n-sync-translations-1.3.1.vsix</code></h3>
+    <h3><span class="num">1</span> Grab <code>i18n-sync-translations-1.3.2.vsix</code></h3>
     <p>Download the file from the <a href="https://github.com/m3nfis/cursor-i18n-sync-translations/releases">GitHub releases page</a>, or directly from the repo root if shared internally.</p>
   </div>
 
@@ -348,10 +348,10 @@ cursor agent --print --model gemini-3-flash "say hi"</code></pre>
       <h4>Option B &mdash; CLI</h4>
       <p>From the directory containing the file:</p>
       <pre><code># New CLI
-agent --install-extension i18n-sync-translations-1.3.1.vsix
+agent --install-extension i18n-sync-translations-1.3.2.vsix
 
 # Legacy CLI
-cursor --install-extension i18n-sync-translations-1.3.1.vsix</code></pre>
+cursor --install-extension i18n-sync-translations-1.3.2.vsix</code></pre>
     </div>
   </div>
 
@@ -417,12 +417,12 @@ cursor --install-extension i18n-sync-translations-1.3.1.vsix</code></pre>
       <tr><td><code>i18nSync.translationTone</code></td><td><code>formal business</code></td><td>Free-text. e.g. <code>casual</code>, <code>technical</code>.</td></tr>
       <tr><td><code>i18nSync.contextWindowSize</code></td><td><code>5</code></td><td>Number of sibling keys included as context.</td></tr>
       <tr><td><code>i18nSync.batchSize</code></td><td><code>40</code></td><td>Keys per CLI call.</td></tr>
-      <tr><td><code>i18nSync.concurrentLimit</code></td><td><code>2</code></td><td>Parallel batches across languages.</td></tr>
+      <tr><td><code>i18nSync.concurrentLimit</code></td><td><code>3</code></td><td>Parallel batches across languages. Bumped from 2 in v1.3.2.</td></tr>
       <tr><td><code>i18nSync.maxRetries</code></td><td><code>3</code></td><td>Per-batch retries with exponential backoff.</td></tr>
       <tr><td><code>i18nSync.autoSync</code></td><td><code>false</code></td><td>Background watcher: re-translates on save.</td></tr>
       <tr><td><code>i18nSync.autoSyncIntervalMinutes</code></td><td><code>3</code></td><td>Debounce before background sync triggers.</td></tr>
       <tr><td><code>i18nSync.cursorCliPath</code></td><td><code>auto</code></td><td>Auto-detects the new <code>agent</code> binary first, falls back to legacy <code>cursor</code>. Set explicitly to <code>agent</code>, <code>cursor</code>, or an absolute path to override.</td></tr>
-      <tr><td><code>i18nSync.cliTimeoutSeconds</code></td><td><code>90</code></td><td>Per-batch CLI timeout. Bump for slow networks / large batches.</td></tr>
+      <tr><td><code>i18nSync.cliTimeoutSeconds</code></td><td><code>180</code></td><td>Per-batch CLI timeout. Bumped from 90 to 180 in v1.3.2 — Cursor CLI/model backend latency frequently exceeds 90&thinsp;s for a single call.</td></tr>
       <tr><td><code>i18nSync.debugMode</code></td><td><code>false</code></td><td>Verbose logging: live stdout/stderr streaming, PID, heartbeat every 15&thinsp;s. Enable when a sync gets stuck.</td></tr>
     </tbody>
   </table>

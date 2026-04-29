@@ -41,11 +41,11 @@ export function getConfig(): TranslationConfig {
     model: cfg.get<string>('model', ''),
     contextWindowSize: cfg.get<number>('contextWindowSize', 5),
     batchSize: cfg.get<number>('batchSize', 40),
-    concurrentLimit: cfg.get<number>('concurrentLimit', 2),
+    concurrentLimit: cfg.get<number>('concurrentLimit', 3),
     maxRetries: cfg.get<number>('maxRetries', 3),
     translationTone: cfg.get<string>('translationTone', 'formal business'),
     cursorCliPath: cfg.get<string>('cursorCliPath', 'auto'),
-    cliTimeoutSeconds: cfg.get<number>('cliTimeoutSeconds', 90),
+    cliTimeoutSeconds: cfg.get<number>('cliTimeoutSeconds', 180),
     debugMode: cfg.get<boolean>('debugMode', false),
   };
 }
@@ -240,7 +240,7 @@ function buildCliArgs(cfg: TranslationConfig, cli: ResolvedCli, prompt: string):
 // ---------------------------------------------------------------------------
 
 interface CliError {
-  type: 'cancelled' | 'fatal_limit' | 'rate_limit' | 'retryable_error' | 'bad_response' | 'error';
+  type: 'cancelled' | 'fatal_limit' | 'rate_limit' | 'retryable_error' | 'bad_response' | 'timeout' | 'error';
   message: string;
   response?: string;
 }
@@ -251,6 +251,7 @@ interface CliError {
 
 const INITIAL_BACKOFF_MS = 2_000;
 const HEARTBEAT_MS = 15_000;
+const SLOW_FIRST_BYTE_MS = 30_000;
 const STREAM_CHUNK_PREVIEW_CHARS = 200;
 const TIMEOUT_DUMP_CHARS = 1_000;
 
@@ -289,6 +290,10 @@ export async function translateKeyBatch(
   const keyOrder = getKeyOrderFromContext(batchWithContext);
 
   if (cfg.debugMode) {
+    const stats = getPromptStats(prompt);
+    output.appendLine(
+      `[DEBUG] Batch ${batchId} prompt stats: chars=${stats.chars}, lines=${stats.lines}, contextLines=${stats.contextLines}, items=${stats.items}, maxInputValueChars=${stats.maxInputValueChars}`
+    );
     output.appendLine(`[DEBUG] Batch ${batchId} prompt (${prompt.length} chars):`);
     output.appendLine(prompt.split('\n').map(l => `  | ${l}`).join('\n'));
   }
@@ -326,9 +331,20 @@ export async function translateKeyBatch(
       }
 
       if (attempt < cfg.maxRetries) {
-        const backoff = INITIAL_BACKOFF_MS * Math.pow(2, attempt - 1);
-        output.appendLine(`    Retrying in ${backoff / 1000}s...`);
-        await delay(backoff);
+        // Backoff is only useful when the upstream is asking us to slow down
+        // (rate limit / transient internal error). For a CLI timeout the
+        // batch already burned `cliTimeoutSeconds` of wall time waiting on
+        // the backend; sleeping another 2-8s before retrying just adds
+        // dead time. Same for `bad_response` — that's a model output
+        // problem, not a throttling signal.
+        const shouldBackoff = err.type === 'rate_limit' || err.type === 'retryable_error';
+        if (shouldBackoff) {
+          const backoff = INITIAL_BACKOFF_MS * Math.pow(2, attempt - 1);
+          output.appendLine(`    Backing off ${backoff / 1000}s before retry (reason: ${err.type})...`);
+          await delay(backoff);
+        } else {
+          output.appendLine(`    Retrying immediately (reason: ${err.type}, no backoff needed)...`);
+        }
       } else {
         output.appendLine(
           `  [Batch ${batchId} | ${targetLang}] Failed after ${cfg.maxRetries} attempts. Skipping.`
@@ -374,6 +390,10 @@ function executeCli(
   return new Promise<Record<string, string>>((resolve, reject) => {
     let stdout = '';
     let stderr = '';
+    let firstStdoutAt: number | null = null;
+    let firstStderrAt: number | null = null;
+    let lastOutputAt: number | null = null;
+    let slowFirstByteLogged = false;
 
     const tag = `[Batch ${batchId} | ${targetLang.toUpperCase()}]`;
     const debugTag = `[DEBUG] ${tag}`;
@@ -392,6 +412,9 @@ function executeCli(
       output.appendLine(
         `${debugTag} spawning: ${cli.command} ${argvForLog}  (timeout=${timeoutMs / 1000}s)`
       );
+      output.appendLine(
+        `${debugTag} env: cwd=${process.cwd()}, pathEntries=${(process.env.PATH || '').split(':').filter(Boolean).length}`
+      );
     }
 
     const child = spawn(cli.command, cliArgs, {
@@ -405,9 +428,17 @@ function executeCli(
     const heartbeat = cfg.debugMode
       ? setInterval(() => {
           const elapsedSec = Math.round((Date.now() - startedAt) / 1000);
+          const lastOutputAgeSec =
+            lastOutputAt === null ? 'never' : `${Math.round((Date.now() - lastOutputAt) / 1000)}s ago`;
           output.appendLine(
-            `${debugTag} still running after ${elapsedSec}s (stdout=${stdout.length}b, stderr=${stderr.length}b, pid=${child.pid ?? '?'})`
+            `${debugTag} still running after ${elapsedSec}s (stdout=${stdout.length}b, stderr=${stderr.length}b, firstStdout=${formatElapsed(firstStdoutAt, startedAt)}, firstStderr=${formatElapsed(firstStderrAt, startedAt)}, lastOutput=${lastOutputAgeSec}, pid=${child.pid ?? '?'})`
           );
+          if (!slowFirstByteLogged && firstStdoutAt === null && firstStderrAt === null && Date.now() - startedAt >= SLOW_FIRST_BYTE_MS) {
+            slowFirstByteLogged = true;
+            output.appendLine(
+              `${debugTag} slow start: no stdout/stderr after ${Math.round(SLOW_FIRST_BYTE_MS / 1000)}s. This usually points to Cursor CLI/model queue latency rather than prompt parsing.`
+            );
+          }
         }, HEARTBEAT_MS)
       : null;
 
@@ -437,8 +468,8 @@ function executeCli(
       }
 
       reject({
-        type: 'error',
-        message: `Command timeout after ${elapsedSec}s (no output: stdout=${stdout.length}b, stderr=${stderr.length}b). See output channel for partial data.`,
+        type: 'timeout',
+        message: `Command timeout after ${elapsedSec}s (stdout=${stdout.length}b, stderr=${stderr.length}b). See output channel for partial data.`,
       } as CliError);
     }, timeoutMs);
 
@@ -460,17 +491,27 @@ function executeCli(
 
     child.stdout.on('data', (data: Buffer) => {
       const chunk = data.toString();
+      const now = Date.now();
+      firstStdoutAt ??= now;
+      lastOutputAt = now;
       stdout += chunk;
       if (cfg.debugMode) {
-        output.appendLine(`${debugTag} stdout +${chunk.length}b: ${previewChunk(chunk)}`);
+        output.appendLine(
+          `${debugTag} stdout +${chunk.length}b at ${formatElapsed(firstStdoutAt, startedAt)}: ${previewChunk(chunk)}`
+        );
       }
     });
 
     child.stderr.on('data', (data: Buffer) => {
       const chunk = data.toString();
+      const now = Date.now();
+      firstStderrAt ??= now;
+      lastOutputAt = now;
       stderr += chunk;
       if (cfg.debugMode) {
-        output.appendLine(`${debugTag} stderr +${chunk.length}b: ${previewChunk(chunk)}`);
+        output.appendLine(
+          `${debugTag} stderr +${chunk.length}b at ${formatElapsed(firstStderrAt, startedAt)}: ${previewChunk(chunk)}`
+        );
       }
     });
 
@@ -493,7 +534,7 @@ function executeCli(
 
       if (cfg.debugMode) {
         output.appendLine(
-          `${debugTag} process closed after ${elapsedSec}s: code=${code}, stdout=${stdout.length}b, stderr=${stderr.length}b`
+          `${debugTag} process closed after ${elapsedSec}s: code=${code}, stdout=${stdout.length}b, stderr=${stderr.length}b, firstStdout=${formatElapsed(firstStdoutAt, startedAt)}, firstStderr=${formatElapsed(firstStderrAt, startedAt)}`
         );
         if (stdout) {
           output.appendLine(`${debugTag} full stdout: ${truncate(stdout, 1500)}`);
@@ -533,6 +574,38 @@ function executeCli(
       resolve(translatedBatch);
     });
   });
+}
+
+interface PromptStats {
+  chars: number;
+  lines: number;
+  contextLines: number;
+  items: number;
+  maxInputValueChars: number;
+}
+
+function getPromptStats(prompt: string): PromptStats {
+  const lines = prompt.split('\n');
+  let items = 0;
+  let maxInputValueChars = 0;
+  for (const line of lines) {
+    const itemMatch = line.match(/^\d+\.\s+"(.*)"$/);
+    if (itemMatch) {
+      items++;
+      maxInputValueChars = Math.max(maxInputValueChars, itemMatch[1].length);
+    }
+  }
+  return {
+    chars: prompt.length,
+    lines: lines.length,
+    contextLines: lines.filter(line => line.startsWith('#')).length,
+    items,
+    maxInputValueChars,
+  };
+}
+
+function formatElapsed(timestamp: number | null, startedAt: number): string {
+  return timestamp === null ? 'never' : `${((timestamp - startedAt) / 1000).toFixed(1)}s`;
 }
 
 /** Single-line preview of a stream chunk for live debug logging. */

@@ -2,7 +2,7 @@
   "name": "i18n-sync-translations",
   "displayName": "i18n Sync Translations",
   "description": "Automatically detect missing i18n translation keys and sync them across all language files using the Cursor CLI. Supports JSON and Java .properties formats.",
-  "version": "1.3.1",
+  "version": "1.3.2",
   "publisher": "GogusExtremus",
   "license": "MIT",
   "icon": "icon.png",
@@ -149,10 +149,10 @@
         },
         "i18nSync.concurrentLimit": {
           "type": "number",
-          "default": 2,
+          "default": 3,
           "minimum": 1,
           "maximum": 5,
-          "description": "Number of concurrent translation batches to process simultaneously."
+          "description": "Number of concurrent translation batches to process simultaneously. Bumped from 2 to 3 in v1.3.2 — the bottleneck is per-call CLI/backend latency, so additional parallelism amortises wait time across languages. Drop back to 1-2 if you start hitting rate limits."
         },
         "i18nSync.maxRetries": {
           "type": "number",
@@ -173,10 +173,10 @@
         },
         "i18nSync.cliTimeoutSeconds": {
           "type": "number",
-          "default": 90,
+          "default": 180,
           "minimum": 10,
           "maximum": 600,
-          "markdownDescription": "How long (seconds) to wait for a single Cursor CLI batch before giving up and retrying. Bump this if your network is slow or your batches are large. On timeout, accumulated stdout/stderr is dumped to the output channel so you can see what (if anything) the CLI produced."
+          "markdownDescription": "How long (seconds) to wait for a single Cursor CLI batch before giving up and retrying. Bumped from 90 to 180 in v1.3.2 — the dominant cost is Cursor CLI/model backend latency, which can easily exceed 60-90s for a single call even with a small prompt. On timeout, accumulated stdout/stderr is dumped to the output channel so you can see what (if anything) the CLI produced."
         },
         "i18nSync.autoSync": {
           "type": "boolean",

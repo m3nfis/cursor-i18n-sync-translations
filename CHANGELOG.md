@@ -5,6 +5,19 @@ All notable changes to the **i18n Sync Translations** extension will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.2] - 2026-04-29
+
+### Changed
+
+- **Default `cliTimeoutSeconds` raised from `90` → `180`.** Direct CLI benchmarks (single call with the same prompt the extension sends) showed Cursor CLI / Gemini backend latency frequently in the 60-80 s range and occasionally exceeding 90 s, even for tiny one-key prompts. The 90 s default was killing healthy-but-slow batches and forcing a retry that often took another 40-50 s — net cost ~130 s. Bumping the timeout to 180 s lets the slow-but-alive case complete on the first attempt. Users on consistently fast networks can still drop it back via settings.
+- **Default `concurrentLimit` raised from `2` → `3`.** Per-call backend latency dominates wall time, so adding a third in-flight batch lets one more language wait *in parallel* instead of serially. Rate-limit / quota detection is unchanged, so users who actually hit limits will still see clear errors and can drop concurrency back.
+- **No backoff on CLI timeout or `bad_response` retries.** The 2-8 s exponential backoff between retries was originally added for rate-limited responses, where slowing down genuinely helps. For a CLI timeout the batch already burned `cliTimeoutSeconds` of wall time waiting on the backend; sleeping another 2 s before retrying is pure dead time. Backoff now only triggers for `rate_limit` and `retryable_error` failure types. The retry log line now states the reason (`Backing off Ns before retry (reason: rate_limit)...` vs `Retrying immediately (reason: timeout, no backoff needed)...`).
+- **Internal: dedicated `timeout` error type.** CLI timeouts are now classified separately from generic `error` so the retry policy can be cleanly differentiated without string-matching the message.
+
+### Added
+
+- **More CLI latency diagnostics in debug mode.** Batch logs now include prompt stats (`chars`, `lines`, `contextLines`, `items`, `maxInputValueChars`), process environment context (`cwd`, `PATH` entry count), first-stdout / first-stderr latency, last-output age, and a 30 s slow-start warning when the Cursor CLI is alive but has produced no output. This makes it easier to distinguish prompt-size issues from Cursor CLI / model queue stalls.
+
 ## [1.3.1] - 2026-04-29
 
 ### Changed
