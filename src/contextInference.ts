@@ -157,7 +157,8 @@ export function enrichBatchWithContext(
 export function buildYamlPrompt(
   batchWithContext: BatchWithContext,
   targetLang: string,
-  translationTone: string
+  translationTone: string,
+  productContext = ''
 ): string {
   const { context } = batchWithContext;
 
@@ -227,10 +228,24 @@ export function buildYamlPrompt(
       ? targetLang
       : `${languageName} (${targetLang})`;
 
+  // Optional product/domain hint. We place it directly under the
+  // language line so the model sees it before the rules and the data —
+  // instruction-following is strongest at the top of the prompt. Empty
+  // string disables the feature (no extra lines, no behaviour change for
+  // users on the default).
+  const productContextLines = productContext.trim()
+    ? [
+        '',
+        'Product/domain context (use this to disambiguate domain-specific terms):',
+        productContext.trim(),
+      ]
+    : [];
+
   return [
     'IMPORTANT: Do NOT use any tools, do NOT modify any files, do NOT read any files. Only respond with plain text output.',
     '',
     `Translate the English strings below to ${targetDescriptor}. Use a ${translationTone} tone.`,
+    ...productContextLines,
     '',
     'Rules:',
     '- Preserve HTML tags, placeholders like {{variable}} or {variable}, and technical/brand terms',

@@ -109,6 +109,7 @@ Open Settings (`Cmd+,` / `Ctrl+,`) and search for **"i18n Sync"**:
 | `i18nSync.concurrentLimit` | `3` | Concurrent batch limit. Bumped from 2 in v1.3.2 — backend latency dominates, so extra parallelism amortises wait time across languages. |
 | `i18nSync.maxRetries` | `3` | Retry attempts per batch. |
 | `i18nSync.translationTone` | `formal business` | Translation tone/style. |
+| `i18nSync.productContext` | `""` | *(workspace-scoped)* Optional product/domain description prepended to every prompt. Helps the model pick domain-appropriate terminology for ambiguous words like *capture*, *settle*, *pay*. See [Product Context](#product-context). |
 | `i18nSync.autoSync` | `false` | Background auto-sync: watches the EN file and translates silently on a timer. |
 | `i18nSync.autoSyncIntervalMinutes` | `3` | Minutes to wait after a file change before auto-syncing (1-30). |
 | `i18nSync.cursorCliPath` | `auto` | Path/command for the Cursor CLI. `auto` probes `agent` and `cursor` on `PATH`, then walks known install locations (`~/.cursor/cli/`, `/opt/homebrew/bin/`, `/Applications/Cursor.app/.../bin/`, etc.) — fixes the macOS GUI-launch case where `which agent` works in your shell but the Extension Host can't see it. Set to `agent`, `cursor`, or an absolute path to override. Run **`i18n: Detect Cursor CLI`** to inspect what was found. |
@@ -158,6 +159,38 @@ If the sync errors out with **`spawn agent ENOENT`** even though `which agent` w
 4. If nothing was found, install the CLI (`curl https://cursor.com/install -fsSL | bash`) or set `i18nSync.cursorCliPath` to the absolute path returned by `which agent`.
 
 The extension performs this same detection automatically before every sync; if the CLI is unreachable it now bails out *before* dispatching any batches and shows a single popup with **Detect CLI / Open Settings / View Output** actions — instead of N batches × `maxRetries` identical `ENOENT` lines in the output channel.
+
+### Product Context
+
+`i18nSync.productContext` is an optional free-text description of *what your product does*, prepended to every translation prompt. The current `translationTone` (`formal business` / `casual` / etc.) tells the model **how** to translate; `productContext` tells it **about what**.
+
+Why it matters: many short strings are ambiguous without domain context. *"Capture"* in a payments app means **charge a held auth** (DE: *Erfassen* / *Belasten*) — but a model with no context will translate it literally as *Aufnehmen* (catch/record). Same for *Statement*, *Settle*, *Reconcile*, *Net*, *Receivable*, *Payable*, *Charge*, *Refund*, *Hold* — every one is a domain-loaded term where the industry-standard translation differs from the generic word.
+
+Set it once per project in `.vscode/settings.json`:
+
+```jsonc
+{
+  "i18nSync.productContext": "B2B payments platform handling invoices, payment requests, payables and receivables for educational institutions"
+}
+```
+
+It then appears at the top of every batch prompt:
+
+```
+Translate the English strings below to German (de). Use a formal business tone.
+
+Product/domain context (use this to disambiguate domain-specific terms):
+B2B payments platform handling invoices, payment requests, payables and receivables for educational institutions
+
+Rules:
+...
+```
+
+**Guidance:**
+- 50–300 chars is the sweet spot. The sync header warns at >800 chars — every batch carries the overhead.
+- Be factual, not promotional. *"Hotel booking app — reservations, refund policies, room categories"* beats *"The world's leading hospitality platform"*.
+- It composes with `translationTone`, doesn't replace it. `tone + domain` together form the full prompt preamble.
+- Empty string disables the feature entirely; existing users see zero behaviour change on upgrade.
 
 ### Context Inference
 

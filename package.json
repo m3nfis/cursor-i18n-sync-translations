@@ -2,7 +2,7 @@
   "name": "i18n-sync-translations",
   "displayName": "i18n Sync Translations",
   "description": "Automatically detect missing i18n translation keys and sync them across all language files using the Cursor CLI. Supports JSON and Java .properties formats.",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "publisher": "GogusExtremus",
   "license": "MIT",
   "icon": "icon.png",
@@ -170,6 +170,12 @@
           "type": "string",
           "default": "formal business",
           "description": "The tone/style to use for translations (e.g., 'formal business', 'casual', 'technical')."
+        },
+        "i18nSync.productContext": {
+          "type": "string",
+          "default": "",
+          "scope": "resource",
+          "markdownDescription": "**Domain/product context** prepended to every translation prompt. Helps the model pick domain-appropriate terminology for ambiguous words like *capture*, *settle*, *pay*, *statement*, *receivable*, where the right translation depends entirely on the product domain.\n\n**`scope: resource`** — set this per-workspace via `.vscode/settings.json` so each project gets its own domain hint without polluting your global User settings.\n\n**Examples:**\n- `B2B payments platform handling invoices, payment requests, payables and receivables for educational institutions`\n- `Hotel booking app — reservations, room options, refunds, guest messaging`\n- `Healthcare scheduling SaaS — patients, appointments, providers, HIPAA-compliant`\n- `E-commerce checkout flow — cart, shipping, taxes, returns`\n\nKeep it short and factual (50–300 chars is the sweet spot). Marketing copy hurts more than it helps. Empty string disables the feature."
         },
         "i18nSync.cursorCliPath": {
           "type": "string",

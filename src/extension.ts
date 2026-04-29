@@ -290,6 +290,11 @@ async function runSync(i18nDir: string): Promise<void> {
     `Model: ${modelDisplay}${isRecommendedModel ? '' : '  (tip: gemini-3-flash is recommended for translations)'}`
   );
   outputChannel.appendLine(`Context window: ${translationCfg.contextWindowSize} adjacent keys`);
+  if (translationCfg.productContext) {
+    const len = translationCfg.productContext.length;
+    const warn = len > 800 ? '  (heads up: >800 chars — every batch carries this overhead, consider trimming)' : '';
+    outputChannel.appendLine(`Product context: ${len} chars${warn}`);
+  }
   logSeparator();
 
   // Step 1: Detect missing keys (or use resumed state)

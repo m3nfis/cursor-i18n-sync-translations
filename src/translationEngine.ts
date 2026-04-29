@@ -31,6 +31,7 @@ export interface TranslationConfig {
   concurrentLimit: number;
   maxRetries: number;
   translationTone: string;
+  productContext: string;
   cursorCliPath: string;
   cliTimeoutSeconds: number;
   debugMode: boolean;
@@ -46,6 +47,7 @@ export function getConfig(): TranslationConfig {
     concurrentLimit: cfg.get<number>('concurrentLimit', 3),
     maxRetries: cfg.get<number>('maxRetries', 3),
     translationTone: cfg.get<string>('translationTone', 'formal business'),
+    productContext: cfg.get<string>('productContext', '').trim(),
     cursorCliPath: cfg.get<string>('cursorCliPath', 'auto'),
     cliTimeoutSeconds: cfg.get<number>('cliTimeoutSeconds', 180),
     debugMode: cfg.get<boolean>('debugMode', false),
@@ -565,7 +567,12 @@ export async function translateKeyBatch(
   }
 
   const batchWithContext = enrichBatchWithContext(batch, enData, existingLangData);
-  const prompt = buildYamlPrompt(batchWithContext, targetLang, cfg.translationTone);
+  const prompt = buildYamlPrompt(
+    batchWithContext,
+    targetLang,
+    cfg.translationTone,
+    cfg.productContext
+  );
   const keyOrder = getKeyOrderFromContext(batchWithContext);
 
   if (cfg.debugMode) {

@@ -50,6 +50,9 @@ const fakeVscode = {
           concurrentLimit: 2,
           maxRetries: 3,
           translationTone: 'formal business',
+          productContext:
+            process.env.I18N_SYNC_TEST_PRODUCT_CONTEXT ??
+            "Hotel booking website for 'Seabreeze Hotel' — room categories (Standard, Deluxe Ocean-View, Penthouse Suite), reservation flow with check-in/check-out dates and guest counts, formal legal disclaimers around tariffs and force majeure, refund and cancellation policies measured in business days, and 24/7 concierge chat support.",
           cursorCliPath: process.env.I18N_SYNC_TEST_CLI_PATH || 'auto',
           cliTimeoutSeconds: Number(process.env.I18N_SYNC_TEST_TIMEOUT_S) || 90,
           debugMode: process.env.I18N_SYNC_TEST_DEBUG === '1',
@@ -124,6 +127,11 @@ async function main() {
   console.log(`Model:        ${process.env.I18N_SYNC_TEST_MODEL || 'gemini-3-flash'}`);
   console.log(`Tone:         formal business`);
   console.log(`Context:      5 sibling keys`);
+  // Set I18N_SYNC_TEST_PRODUCT_CONTEXT="" to A/B against the no-context baseline.
+  const productContext =
+    process.env.I18N_SYNC_TEST_PRODUCT_CONTEXT ??
+    "Hotel booking website for 'Seabreeze Hotel' (default)";
+  console.log(`Product ctx:  ${productContext ? `${productContext.length} chars` : '(disabled)'}`);
   console.log('');
 
   // 1. Snapshot

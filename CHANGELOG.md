@@ -5,6 +5,16 @@ All notable changes to the **i18n Sync Translations** extension will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - 2026-04-29
+
+### Added
+
+- **`i18nSync.productContext` setting** *(workspace-scoped)* — an optional, free-text product/domain description that is prepended to every translation prompt. Helps the model pick domain-appropriate terminology for ambiguous words like *capture*, *settle*, *pay*, *statement*, *receivable* — where the right translation depends entirely on the product. Empty by default (no behaviour change for existing users); opt in per project via `.vscode/settings.json`.
+  - Concrete examples that materially change output quality: a payments app gets *Belasten* for "Capture" instead of literal *Aufnehmen*; a hotel app keeps refund/cancellation language in legal register instead of casual; a healthcare app uses HIPAA-aware patient/provider vocabulary.
+  - Injected directly under the target-language line (top of the prompt where instruction-following is strongest), above the rules block. No effect on the existing `translationTone` setting — they compose: `tone + domain` is the prompt header pair.
+  - Sync header logs the configured length and warns when >800 chars (every batch carries the overhead — keeps users from pasting marketing brochures).
+  - Test-app ships a representative `productContext` in `test-app/.vscode/settings.json` so the end-to-end harness exercises the new path immediately. Override / disable via `I18N_SYNC_TEST_PRODUCT_CONTEXT` env var for A/B comparisons against the no-context baseline.
+
 ## [1.4.0] - 2026-04-29
 
 ### Added
