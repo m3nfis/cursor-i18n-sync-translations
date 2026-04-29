@@ -4,6 +4,7 @@
 docs/**
 test-app/**
 releases/**
+cursor-skill/**
 src/**
 .gitignore
 .gitlab-ci.yml

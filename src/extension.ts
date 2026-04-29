@@ -285,10 +285,17 @@ async function runSync(i18nDir: string): Promise<void> {
   outputChannel.appendLine(`Format: ${config.mode === 'json' ? 'JSON' : 'Java Properties'}`);
 
   const modelDisplay = translationCfg.model || '(Cursor default)';
-  const isRecommendedModel = ['gemini-3-flash', 'gemini-3-pro'].includes(translationCfg.model);
-  outputChannel.appendLine(
-    `Model: ${modelDisplay}${isRecommendedModel ? '' : '  (tip: gemini-3-flash is recommended for translations)'}`
-  );
+  outputChannel.appendLine(`Model: ${modelDisplay}`);
+  // Sync-time warning: gemini-3-flash is the only model with multilingual
+  // training data strong enough for production translations. We don't block
+  // (the user might have a good reason to override), but we surface this on
+  // every sync so it doesn't go unnoticed. Skill in cursor-skill/ does the
+  // one-shot setup; this is the runtime backstop.
+  if (translationCfg.model !== 'gemini-3-flash') {
+    outputChannel.appendLine(
+      `  WARNING: model is "${modelDisplay}" — gemini-3-flash is strongly recommended for translations (best multilingual data, fastest, cheapest). Change in Settings or run the i18n-sync-setup Cursor skill.`
+    );
+  }
   outputChannel.appendLine(`Context window: ${translationCfg.contextWindowSize} adjacent keys`);
   if (translationCfg.productContext) {
     const len = translationCfg.productContext.length;

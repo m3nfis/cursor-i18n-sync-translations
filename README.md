@@ -36,11 +36,30 @@ npm run compile
 npm run package
 
 # Install the resulting .vsix file
-cursor --install-extension i18n-sync-translations-1.3.2.vsix
+cursor --install-extension i18n-sync-translations-1.5.1.vsix
 # Or, with the new CLI:
-agent --install-extension i18n-sync-translations-1.3.2.vsix
+agent --install-extension i18n-sync-translations-1.5.1.vsix
 # Or: Cmd+Shift+P > "Extensions: Install from VSIX..."
 ```
+
+### One-shot install via Cursor Agent Skill (recommended for Cursor users)
+
+The repo ships a [Cursor Agent Skill](https://cursor.com/docs/agent/skills) that installs the extension and pins `i18nSync.model = "gemini-3-flash"` in one step. Install the skill once, then ask the Cursor agent to set up i18n sync any time you start a new project:
+
+```bash
+# From the repo root
+./cursor-skill/install.sh                  # interactive: pick global vs workspace
+./cursor-skill/install.sh global           # ~/.cursor/skills/  (every workspace)
+./cursor-skill/install.sh workspace        # ./.cursor/skills/ (committed to current repo)
+```
+
+After install, in any Cursor agent chat:
+
+> install i18n sync
+
+The agent picks up the skill, finds the latest `.vsix`, installs it, patches your Cursor `settings.json` (preserving unrelated keys), and optionally seeds a workspace-scoped `productContext` for the open project.
+
+See [`cursor-skill/README.md`](cursor-skill/README.md) for details and uninstall instructions.
 
 ## How to Use
 
@@ -103,7 +122,7 @@ Open Settings (`Cmd+,` / `Ctrl+,`) and search for **"i18n Sync"**:
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| `i18nSync.model` | `gemini-3-flash` | LLM model for translations. **Gemini 3 Flash is strongly recommended** - best multilingual data, fast, cheap. |
+| `i18nSync.model` | `gemini-3-flash` | LLM model for translations. **Gemini 3 Flash is strongly recommended** — see [Why gemini-3-flash](#why-gemini-3-flash). The extension logs a `WARNING:` line at sync start when this is set to anything else. |
 | `i18nSync.contextWindowSize` | `5` | Number of adjacent sibling keys to include as context (0 to disable). |
 | `i18nSync.batchSize` | `40` | Keys per translation batch. |
 | `i18nSync.concurrentLimit` | `3` | Concurrent batch limit. Bumped from 2 in v1.3.2 — backend latency dominates, so extra parallelism amortises wait time across languages. |
@@ -115,6 +134,22 @@ Open Settings (`Cmd+,` / `Ctrl+,`) and search for **"i18n Sync"**:
 | `i18nSync.cursorCliPath` | `auto` | Path/command for the Cursor CLI. `auto` probes `agent` and `cursor` on `PATH`, then walks known install locations (`~/.cursor/cli/`, `/opt/homebrew/bin/`, `/Applications/Cursor.app/.../bin/`, etc.) — fixes the macOS GUI-launch case where `which agent` works in your shell but the Extension Host can't see it. Set to `agent`, `cursor`, or an absolute path to override. Run **`i18n: Detect Cursor CLI`** to inspect what was found. |
 | `i18nSync.cliTimeoutSeconds` | `180` | How long to wait for a single CLI batch before giving up. Bumped from 90 in v1.3.2 — Cursor CLI / model backend latency frequently exceeds 90s for a single call, even with a small prompt. |
 | `i18nSync.debugMode` | `false` | Verbose logging — see [Verbose / Debug Logging](#verbose--debug-logging). |
+
+### Why `gemini-3-flash`
+
+Gemini 3 Flash is the only Cursor-available model with multilingual training data strong enough for production translations:
+
+- **Best multilingual coverage** — Google's translation lineage gives it an order-of-magnitude advantage over OpenAI / Anthropic / xAI models for non-English languages, especially for regional variants (`pt-BR`, `es-419`, `zh-Hans`/`zh-Hant`).
+- **Fastest** — single-batch latency is the dominant cost in this extension; Flash beats Pro / Sonnet / GPT on time-to-first-token by a wide margin.
+- **Cheapest** — measurably so for the prompt sizes this extension produces (a few KB per batch).
+
+Using Claude / GPT / Composer / Grok produces noticeably worse translations and burns more API quota for the privilege. The extension therefore:
+
+1. Defaults `i18nSync.model` to `gemini-3-flash`.
+2. Logs a `WARNING:` line at sync start when the configured model is anything else (sync still runs — soft enforcement only).
+3. Ships an [optional Cursor Agent Skill](cursor-skill/README.md) that pins this setting on install so it doesn't drift.
+
+If you have a hard requirement to use a different model (compliance, regional availability, etc.), the warning is a one-time annoyance per sync — not a blocker.
 
 ### Background Auto-Sync
 

@@ -5,6 +5,13 @@ All notable changes to the **i18n Sync Translations** extension will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.1] - 2026-04-29
+
+### Added
+
+- **Cursor Agent Skill — `i18n-sync-setup`** *(new `cursor-skill/` folder, optional install)*. A one-shot installer/configurator for the extension that pins `i18nSync.model` to `gemini-3-flash` and seeds sensible defaults. The skill auto-triggers on phrases like *"install i18n sync"* / *"set up i18n translations"* and walks the agent through locating the latest `.vsix`, installing it via `agent --install-extension`, patching the user's Cursor `settings.json` (read-modify-write — preserves unrelated keys), and optionally seeding `productContext` per-workspace. Ships with `cursor-skill/install.sh` that lets the user pick **global** (`~/.cursor/skills/`) or **workspace** (`./.cursor/skills/`) install scope.
+- **Sync-time model warning.** `i18n: Sync Translations` now logs a single `WARNING:` line in the output channel at sync start when `i18nSync.model` is anything other than `gemini-3-flash`. Soft enforcement only — the sync still runs — but the warning makes a quietly-changed model setting impossible to miss. The skill is the install-time fix; this is the runtime backstop.
+
 ## [1.5.0] - 2026-04-29
 
 ### Added

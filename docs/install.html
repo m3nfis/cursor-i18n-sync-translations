@@ -332,7 +332,7 @@ cursor agent --print --model gemini-3-flash "say hi"</code></pre>
 
   <h2 id="download">1. Download the VSIX</h2>
   <div class="step">
-    <h3><span class="num">1</span> Grab <code>i18n-sync-translations-1.5.0.vsix</code></h3>
+    <h3><span class="num">1</span> Grab <code>i18n-sync-translations-1.5.1.vsix</code></h3>
     <p>Download the file from the <a href="https://github.com/m3nfis/cursor-i18n-sync-translations/releases">GitHub releases page</a>, or directly from the repo root if shared internally.</p>
   </div>
 
@@ -348,14 +348,18 @@ cursor agent --print --model gemini-3-flash "say hi"</code></pre>
       <h4>Option B &mdash; CLI</h4>
       <p>From the directory containing the file:</p>
       <pre><code># New CLI
-agent --install-extension i18n-sync-translations-1.5.0.vsix
+agent --install-extension i18n-sync-translations-1.5.1.vsix
 
 # Legacy CLI
-cursor --install-extension i18n-sync-translations-1.5.0.vsix</code></pre>
+cursor --install-extension i18n-sync-translations-1.5.1.vsix</code></pre>
     </div>
   </div>
 
   <p>Reload Cursor when prompted. Confirm the install by opening any <code>i18n-en.json</code> &mdash; you should see a globe icon in the editor title bar and an <em>"i18n Sync"</em> indicator in the status bar.</p>
+
+  <div class="callout ok">
+    <strong>Option C (recommended for Cursor users) &mdash; Cursor Agent Skill.</strong> The repo ships a one-shot installer skill at <code>cursor-skill/</code> that does install + config in a single agent message, with <code>i18nSync.model</code> pinned to <code>gemini-3-flash</code> so step 3 below is automatic. Run <code>./cursor-skill/install.sh</code> from the repo root, pick global or workspace scope, then in any Cursor agent chat type <em>"install i18n sync"</em>. See <a href="https://github.com/m3nfis/cursor-i18n-sync-translations/blob/main/cursor-skill/README.md"><code>cursor-skill/README.md</code></a> for details.
+  </div>
 
   <h2 id="model">3. Set the model to <code>gemini-3-flash</code> <span class="pill">required</span></h2>
 
