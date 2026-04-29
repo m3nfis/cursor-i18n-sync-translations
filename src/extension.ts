@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { detectProjectConfig, ProjectConfig } from './fileHandlers';
-import { translateKeyBatch, createBatches, TranslationBatch, getConfig as getTranslationConfig } from './translationEngine';
+import { translateKeyBatch, createBatches, TranslationBatch, getConfig as getTranslationConfig, clearCliResolutionCache } from './translationEngine';
 import { StateManager, SyncState } from './stateManager';
 import { findMissingKeys, mergeSingleLanguage, loadLangContextWithFallback } from './syncUtils';
 import { initAutoSync, disposeAutoSync } from './autoSync';
@@ -48,6 +48,17 @@ export function activate(context: vscode.ExtensionContext): void {
     () => showStatusBarIfRelevant(),
     null,
     context.subscriptions
+  );
+
+  // Drop the CLI resolution cache when the user changes the relevant setting
+  // so a switch from `auto` -> `agent` (or similar) takes effect on the next
+  // sync without requiring a window reload.
+  context.subscriptions.push(
+    vscode.workspace.onDidChangeConfiguration(e => {
+      if (e.affectsConfiguration('i18nSync.cursorCliPath')) {
+        clearCliResolutionCache();
+      }
+    })
   );
 
   // Background auto-sync

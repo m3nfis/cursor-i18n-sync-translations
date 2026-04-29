@@ -8,7 +8,7 @@ A  Cursor extension that automatically detects missing i18n translation keys and
 - **YAML-structured prompts** - Batches are sent as YAML sections with commented context so the LLM sees the semantic grouping of keys.
 - **Configurable LLM model** - Choose which model to use (Gemini, Claude, GPT, Grok, etc.).
 - **Auto-detect missing keys** - Compares all language files against the English base file.
-- **Batch translation** - Uses the Cursor CLI agent to translate in efficient batches.
+- **Batch translation** - Uses the Cursor CLI agent to translate in efficient batches. Supports both the new `agent` binary and the legacy `cursor` binary (auto-detected).
 - **Resumable** - If interrupted, progress is saved and can be resumed.
 - **Dual format support** - Works with both JSON (`i18n-en.json`) and Java Properties (`Messages.properties`).
 - **Long locale (BCP 47) support** - Recognises region- and script-suffixed locales such as `i18n-pt-BR.json`, `i18n-fr-CA.json`, `i18n-es-419.json`, `i18n-zh-Hans.json`, `i18n-zh-Hant.json`, `i18n-en-GB.json`. The LLM is prompted with the resolved language name (e.g. `Brazilian Portuguese`), and missing long-locale files fall back to the short locale's translations as context.
@@ -36,7 +36,9 @@ npm run compile
 npm run package
 
 # Install the resulting .vsix file
-cursor --install-extension i18n-sync-translations-1.1.0.vsix
+cursor --install-extension i18n-sync-translations-1.3.0.vsix
+# Or, with the new CLI:
+agent --install-extension i18n-sync-translations-1.3.0.vsix
 # Or: Cmd+Shift+P > "Extensions: Install from VSIX..."
 ```
 
@@ -109,8 +111,9 @@ Open Settings (`Cmd+,` / `Ctrl+,`) and search for **"i18n Sync"**:
 | `i18nSync.translationTone` | `formal business` | Translation tone/style. |
 | `i18nSync.autoSync` | `false` | Background auto-sync: watches the EN file and translates silently on a timer. |
 | `i18nSync.autoSyncIntervalMinutes` | `3` | Minutes to wait after a file change before auto-syncing (1-30). |
-| `i18nSync.cursorCliPath` | `cursor` | Path to Cursor CLI. |
-| `i18nSync.debugMode` | `false` | Verbose logging. |
+| `i18nSync.cursorCliPath` | `auto` | Path/command for the Cursor CLI. `auto` prefers the new `agent` binary and falls back to the legacy `cursor` binary. Set to `agent`, `cursor`, or an absolute path to override. |
+| `i18nSync.cliTimeoutSeconds` | `90` | How long to wait for a single CLI batch before giving up. Bump for slow networks / large batches. |
+| `i18nSync.debugMode` | `false` | Verbose logging — see [Verbose / Debug Logging](#verbose--debug-logging). |
 
 ### Background Auto-Sync
 
@@ -120,6 +123,28 @@ Enable `i18nSync.autoSync` to have the extension watch `i18n-en.json` (or `Messa
 - Status bar shows `$(sync~spin) i18n Auto-Syncing...` while running, then briefly flashes the result.
 - All activity is logged to the "i18n Sync Translations" output channel.
 - If a sync is already running when the timer fires, it skips.
+
+### Verbose / Debug Logging
+
+If a sync is hanging or batches keep timing out, enable `i18nSync.debugMode` (Settings &rarr; search for *"i18n Sync"* &rarr; check *"Debug Mode"*) and re-run. The output channel will additionally show:
+
+- The exact `agent` / `cursor` command and PID for each batch (so you can copy-paste and reproduce manually).
+- **Live `stdout`/`stderr` chunks** as the CLI streams them - you'll see *immediately* if the CLI is producing output or just sitting there.
+- A **heartbeat every 15 seconds** while a batch is running: `[Batch 1 | DE] still running after 30s (stdout=0b, stderr=0b, pid=12345)`.
+- The full prompt sent to the model and the final stdout/stderr on close.
+
+Even with debug mode **off**, partial stdout/stderr is *always* dumped on a timeout, plus a hint that points at the most likely cause:
+
+```
+[Batch 1 | DE] CLI timed out after 90s. Dumping partial output for diagnosis:
+[Batch 1 | DE]   command: agent --print --force --output-format text --model gemini-3-flash <prompt:3421chars>
+[Batch 1 | DE]   pid: 12345
+[Batch 1 | DE]   stdout (0b): <empty>
+[Batch 1 | DE]   stderr (0b): <empty>
+[Batch 1 | DE]   Hint: zero output usually means the CLI is waiting on auth (run `agent login`) or network. Enable i18nSync.debugMode for live streaming.
+```
+
+If the CLI legitimately needs longer than 90 s (huge batches, slow network), bump `i18nSync.cliTimeoutSeconds`.
 
 ### Context Inference
 
@@ -144,17 +169,22 @@ This produces translations that are consistent with the existing terminology in 
 
 ## Prerequisites
 
-- **Cursor IDE** with the CLI available in your PATH
-  - In Cursor: `Cmd+Shift+P` > "Install 'cursor' command in PATH"
-  - Verify with `cursor --version`
+- **Cursor CLI** available in your PATH. The CLI was renamed from `cursor` to `agent` in 2026 — the extension auto-detects either:
+  - **New CLI (recommended):** `curl https://cursor.com/install -fsSL | bash` installs the `agent` binary. Verify with `agent --version`.
+  - **Legacy CLI:** in Cursor IDE, `Cmd+Shift+P` > "Install 'cursor' command in PATH". Verify with `cursor --version`.
+  - The extension picks whichever it finds first (`agent` preferred). Override via the `i18nSync.cursorCliPath` setting if needed.
 - **Authenticated Cursor CLI** *(one-time, required before first sync)*
-  - Run `cursor login` in your terminal. This opens a browser to sign in to your Cursor account. Without this step the extension's first translation batch fails with an auth error from `cursor agent` (the underlying command this extension shells out to).
+  - Run `agent login` (new CLI) or `cursor login` (legacy CLI) in your terminal. This opens a browser to sign in to your Cursor account. Without this step the extension's first translation batch fails with an auth error.
   - Quick smoke test that auth works:
     ```bash
+    # New CLI
+    agent --print --model gemini-3-flash "say hi"
+
+    # Legacy CLI
     cursor agent --print --model gemini-3-flash "say hi"
     ```
-    If you see a one-line reply, the extension is good to go. If you see an authentication / login prompt, you still need to run `cursor login`.
-  - Re-run `cursor login` whenever your session expires or you switch Cursor accounts.
+    If you see a one-line reply, the extension is good to go. If you see an authentication / login prompt, you still need to run `agent login` / `cursor login`.
+  - Re-run the login command whenever your session expires or you switch Cursor accounts.
 - Node.js (for building from source)
 
 ## Development

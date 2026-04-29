@@ -50,7 +50,8 @@ const fakeVscode = {
           concurrentLimit: 2,
           maxRetries: 3,
           translationTone: 'formal business',
-          cursorCliPath: 'cursor',
+          cursorCliPath: process.env.I18N_SYNC_TEST_CLI_PATH || 'auto',
+          cliTimeoutSeconds: Number(process.env.I18N_SYNC_TEST_TIMEOUT_S) || 90,
           debugMode: process.env.I18N_SYNC_TEST_DEBUG === '1',
         };
         if (Object.prototype.hasOwnProperty.call(overrides, key)) return overrides[key];

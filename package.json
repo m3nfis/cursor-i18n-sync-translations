@@ -2,7 +2,7 @@
   "name": "i18n-sync-translations",
   "displayName": "i18n Sync Translations",
   "description": "Automatically detect missing i18n translation keys and sync them across all language files using the Cursor CLI. Supports JSON and Java .properties formats.",
-  "version": "1.1.0",
+  "version": "1.3.0",
   "publisher": "GogusExtremus",
   "license": "MIT",
   "icon": "icon.png",
@@ -168,8 +168,15 @@
         },
         "i18nSync.cursorCliPath": {
           "type": "string",
-          "default": "cursor",
-          "description": "Path to the Cursor CLI executable. Use 'cursor' if it's in your PATH."
+          "default": "auto",
+          "markdownDescription": "Path or name of the Cursor CLI executable.\n\n- `auto` *(default)* — auto-detect: prefers the new `agent` binary, falls back to the legacy `cursor` binary.\n- `agent` — force the **new** Cursor CLI (renamed in 2026, invoked as `agent --print ...`).\n- `cursor` — force the **legacy** CLI (invoked as `cursor agent --print ...`).\n- An absolute path — point at a custom install. The basename decides whether the `agent` subcommand is used (`.../agent` ⇒ no subcommand, anything else ⇒ legacy mode)."
+        },
+        "i18nSync.cliTimeoutSeconds": {
+          "type": "number",
+          "default": 90,
+          "minimum": 10,
+          "maximum": 600,
+          "markdownDescription": "How long (seconds) to wait for a single Cursor CLI batch before giving up and retrying. Bump this if your network is slow or your batches are large. On timeout, accumulated stdout/stderr is dumped to the output channel so you can see what (if anything) the CLI produced."
         },
         "i18nSync.autoSync": {
           "type": "boolean",
@@ -186,7 +193,7 @@
         "i18nSync.debugMode": {
           "type": "boolean",
           "default": false,
-          "description": "Enable verbose debug logging in the output channel."
+          "markdownDescription": "**Verbose debug logging.** Enable this when a sync seems stuck or batches keep timing out. With debug mode on, the output channel additionally shows:\n\n- The exact `agent`/`cursor` command and PID for each batch.\n- Live `stdout`/`stderr` chunks as the CLI streams them (so you see *immediately* if the CLI is producing output or just hanging).\n- A heartbeat every 15s while a batch is running.\n- The full prompt sent to the model and the elapsed time on completion.\n\nPartial stdout/stderr is *always* dumped on a timeout, regardless of this setting."
         }
       }
     }

@@ -5,6 +5,16 @@ All notable changes to the **i18n Sync Translations** extension will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-04-29
+
+### Added
+
+- **Dual CLI support (`agent` + legacy `cursor`)** - Cursor renamed the CLI binary from `cursor` to `agent` in 2026. The extension now auto-detects which is installed: it probes `agent --version` first, falls back to `cursor --version`, and adjusts its argument layout accordingly (the new `agent` binary is invoked directly without the `agent` subcommand; the legacy `cursor` binary still uses `cursor agent ...`). Detection is cached per session and re-run when the user changes the setting.
+- **`i18nSync.cursorCliPath` accepts `auto`** *(new default)* - explicit values `agent`, `cursor`, or an absolute path still work; the basename of a custom path is used to decide whether to prepend the `agent` subcommand. Existing users with an explicit `cursor` setting continue to work unchanged.
+- **Live verbose logging for stuck syncs.** Enabling `i18nSync.debugMode` now additionally streams `stdout`/`stderr` chunks **as they arrive** from the CLI, prints the resolved command + child PID, and emits a heartbeat every 15 s while a batch is in flight (`[Batch 1 | DE] still running after 30s (stdout=0b, stderr=0b, pid=12345)`). Makes it trivial to tell whether the CLI is producing any output at all vs. hanging on auth/network.
+- **Always-on timeout diagnostics.** Even with debug mode off, partial `stdout`/`stderr` is dumped to the output channel on every CLI timeout, plus a hint pointing at the most likely cause (auth / network) when both streams are empty. Previously the user only saw `Command timeout after 90 seconds` with no further context.
+- **`i18nSync.cliTimeoutSeconds` setting** (default `90`, range `10`–`600`) so users on slow networks / with large batches can bump the per-batch CLI timeout without rebuilding the extension.
+
 ## [1.1.0] - 2026-04-28
 
 ### Added
