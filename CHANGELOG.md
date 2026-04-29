@@ -5,6 +5,14 @@ All notable changes to the **i18n Sync Translations** extension will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.1] - 2026-04-29
+
+### Changed
+
+- **Stop sending translation keys on the to-translate line.** Previously each item was sent as `N. key: "value"`, which Gemini-family models would occasionally mirror back as `N. key: "translation"` instead of just `N. translation`. The numbered items are now sent as `N. "value"` only — the parent prefix is still present in the section header (`# --- Section: settings.agreements ---`), so semantic context is preserved, but the model no longer has a `key:` token in its input to echo. Eliminates the most common source of "echoed key" responses observed in v1.3.0 logs.
+- **`sanitizeTranslatedValue` now always unwraps surrounding quotes** (defensively), in addition to the existing key-echo strip. Models that mirror the prompt's quoted format back as `1. "translation"` no longer leak literal quote characters into the saved file. The key-echo strip is retained as defence-in-depth.
+- **Tighter prompt format rule.** Replaced the ambiguous `Return ONLY the translated values in the exact same numbered format: "N. translated value"` with explicit no-quotes / no-key guidance and a worked example, reducing the chance of models over-mirroring the input format.
+
 ## [1.3.0] - 2026-04-29
 
 ### Added

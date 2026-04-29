@@ -2,7 +2,7 @@
   "name": "i18n-sync-translations",
   "displayName": "i18n Sync Translations",
   "description": "Automatically detect missing i18n translation keys and sync them across all language files using the Cursor CLI. Supports JSON and Java .properties formats.",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "publisher": "GogusExtremus",
   "license": "MIT",
   "icon": "icon.png",

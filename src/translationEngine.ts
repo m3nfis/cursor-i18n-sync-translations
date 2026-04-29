@@ -628,15 +628,28 @@ function escapeRegExp(s: string): string {
 }
 
 /**
- * The prompt feeds each item to the LLM as `N. key: "value"`. Some models
- * (notably Gemini variants) occasionally mirror that exact format in their
- * reply instead of returning only the translated value, producing lines like
- * `N. key: "translated"`. After the leading `N. ` is stripped we may still
- * be left with `key: "translated"` (or even `key: translated`).
+ * Defensive cleanup of a raw model response line (after the leading
+ * `N. ` numbering prefix has already been stripped by the parser).
  *
- * This helper detects that pattern for a known target key and returns the
- * inner translated string, also unwrapping a single layer of surrounding
- * matching quotes and unescaping `\"` / `\\` if present.
+ * Two artifacts are normalised:
+ *
+ * 1. **Echoed key prefix.** Older prompt revisions sent each item as
+ *    `N. key: "value"`, which Gemini variants in particular liked to
+ *    mirror back as `N. key: "translation"`. Current prompts no longer
+ *    include the key on the to-translate line (see contextInference
+ *    `buildYamlPrompt`), but we keep the strip logic as defence-in-depth
+ *    in case a future prompt regression or an unusual model echoes the
+ *    key anyway.
+ *
+ * 2. **Surrounding quotes.** The English value is wrapped in double
+ *    quotes in the prompt so the model can unambiguously see where it
+ *    starts and ends. Many models mirror those quotes back; we always
+ *    try to unwrap a matching `"..."` / `'...'` pair so the saved file
+ *    contains the bare translated text.
+ *
+ * `unwrapMatchingQuotes` is conservative — it only strips when the first
+ * and last characters are the same quote char, so values that legitimately
+ * start *or* end (but not both) with a quote are preserved.
  */
 export function sanitizeTranslatedValue(rawValue: string, key: string): string {
   let value = rawValue;
@@ -644,8 +657,9 @@ export function sanitizeTranslatedValue(rawValue: string, key: string): string {
   const keyEcho = new RegExp(String.raw`^${escapeRegExp(key)}\s*:\s*`);
   if (keyEcho.test(value)) {
     value = value.replace(keyEcho, '');
-    value = unwrapMatchingQuotes(value);
   }
+
+  value = unwrapMatchingQuotes(value);
 
   return value;
 }

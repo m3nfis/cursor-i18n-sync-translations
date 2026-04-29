@@ -206,7 +206,13 @@ export function buildYamlPrompt(
 
     yamlBody += `# Translate the following:\n`;
     for (const entry of entries) {
-      yamlBody += `${itemIndex}. ${entry.key}: "${entry.value}"\n`;
+      // We deliberately do NOT include the key on the to-translate line.
+      // The section header above already carries the key prefix as
+      // semantic context, and exposing the full key here only invited
+      // models (notably Gemini) to mirror it back in their reply as
+      // `N. key: "value"`. With just the quoted English value, there is
+      // nothing structural for the model to echo.
+      yamlBody += `${itemIndex}. "${entry.value}"\n`;
       itemIndex++;
     }
     yamlBody += `\n`;
@@ -229,8 +235,9 @@ export function buildYamlPrompt(
     'Rules:',
     '- Preserve HTML tags, placeholders like {{variable}} or {variable}, and technical/brand terms',
     '- Use the commented context lines (prefixed with #) to understand the domain and tone, but do NOT translate them',
-    '- Return ONLY the translated values in the exact same numbered format: "N. translated value"',
-    '- No extra explanation, no markdown, no YAML structure in the output',
+    '- Output exactly one line per input item, in the same order, formatted as: `N. <translation>`',
+    '- Do NOT include the surrounding quotes from the input, do NOT prefix the translation with any key name, do NOT add explanations or markdown',
+    '- Example: for input `1. "Hello"` you must reply `1. Bonjour` (no quotes, no key, no extra characters)',
     '',
     yamlBody,
   ].join('\n');

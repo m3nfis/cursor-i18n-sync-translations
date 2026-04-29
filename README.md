@@ -36,9 +36,9 @@ npm run compile
 npm run package
 
 # Install the resulting .vsix file
-cursor --install-extension i18n-sync-translations-1.3.0.vsix
+cursor --install-extension i18n-sync-translations-1.3.1.vsix
 # Or, with the new CLI:
-agent --install-extension i18n-sync-translations-1.3.0.vsix
+agent --install-extension i18n-sync-translations-1.3.1.vsix
 # Or: Cmd+Shift+P > "Extensions: Install from VSIX..."
 ```
 
@@ -161,9 +161,11 @@ When translating a key like `settings.agreements.select_file`, the extension loo
 #   settings.agreements.download_document: Dokument herunterladen
 #
 # Translate the following:
-1. settings.agreements.select_file: "Select file"
-2. settings.agreements.uploading: "Uploading file..."
+1. "Select file"
+2. "Uploading file..."
 ```
+
+The full key path is intentionally **omitted from the to-translate lines** — the section header above already carries the prefix as semantic context, and exposing the full key on the line being translated invited Gemini-family models to mirror it back in their reply (`N. key: "value"` instead of just `N. value`). With only the quoted English value on each line, there is nothing structural for the model to echo, which materially improves response cleanliness.
 
 This produces translations that are consistent with the existing terminology in each language file.
 
