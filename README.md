@@ -111,7 +111,7 @@ Open Settings (`Cmd+,` / `Ctrl+,`) and search for **"i18n Sync"**:
 | `i18nSync.translationTone` | `formal business` | Translation tone/style. |
 | `i18nSync.autoSync` | `false` | Background auto-sync: watches the EN file and translates silently on a timer. |
 | `i18nSync.autoSyncIntervalMinutes` | `3` | Minutes to wait after a file change before auto-syncing (1-30). |
-| `i18nSync.cursorCliPath` | `auto` | Path/command for the Cursor CLI. `auto` prefers the new `agent` binary and falls back to the legacy `cursor` binary. Set to `agent`, `cursor`, or an absolute path to override. |
+| `i18nSync.cursorCliPath` | `auto` | Path/command for the Cursor CLI. `auto` probes `agent` and `cursor` on `PATH`, then walks known install locations (`~/.cursor/cli/`, `/opt/homebrew/bin/`, `/Applications/Cursor.app/.../bin/`, etc.) — fixes the macOS GUI-launch case where `which agent` works in your shell but the Extension Host can't see it. Set to `agent`, `cursor`, or an absolute path to override. Run **`i18n: Detect Cursor CLI`** to inspect what was found. |
 | `i18nSync.cliTimeoutSeconds` | `180` | How long to wait for a single CLI batch before giving up. Bumped from 90 in v1.3.2 — Cursor CLI / model backend latency frequently exceeds 90s for a single call, even with a small prompt. |
 | `i18nSync.debugMode` | `false` | Verbose logging — see [Verbose / Debug Logging](#verbose--debug-logging). |
 
@@ -146,6 +146,19 @@ Even with debug mode **off**, partial stdout/stderr is *always* dumped on a time
 
 If the CLI legitimately needs longer than 90 s (huge batches, slow network), bump `i18nSync.cliTimeoutSeconds`.
 
+### "Cursor CLI not found" / `spawn agent ENOENT`
+
+If the sync errors out with **`spawn agent ENOENT`** even though `which agent` works in your terminal, the Extension Host does not have the same `PATH` your shell does. This is a macOS-specific gotcha: GUI apps launched from Spotlight, Finder, or the Dock inherit a minimal `PATH` from `launchd` that does **not** include shell additions from `~/.zshrc` / `~/.bashrc` (e.g. `/opt/homebrew/bin`, `~/.cursor/cli`, `~/.local/bin`).
+
+**Fix it in 5 seconds:**
+
+1. Open the command palette (`Cmd+Shift+P`) and run **`i18n: Detect Cursor CLI`**.
+2. The output channel will show the full diagnostic report: configured path, every probe attempt, the effective `PATH`, every fallback location checked, and the final resolved binary.
+3. If the CLI was found at an absolute path, click **Save Path** in the popup — this writes the absolute path to `i18nSync.cursorCliPath` and future syncs go straight to it.
+4. If nothing was found, install the CLI (`curl https://cursor.com/install -fsSL | bash`) or set `i18nSync.cursorCliPath` to the absolute path returned by `which agent`.
+
+The extension performs this same detection automatically before every sync; if the CLI is unreachable it now bails out *before* dispatching any batches and shows a single popup with **Detect CLI / Open Settings / View Output** actions — instead of N batches × `maxRetries` identical `ENOENT` lines in the output channel.
+
 ### Context Inference
 
 When translating a key like `settings.agreements.select_file`, the extension looks at adjacent keys with the same prefix (`settings.agreements.*`) that already exist in the target language file. These are included as YAML comments in the prompt so the LLM understands the domain:
@@ -171,10 +184,11 @@ This produces translations that are consistent with the existing terminology in 
 
 ## Prerequisites
 
-- **Cursor CLI** available in your PATH. The CLI was renamed from `cursor` to `agent` in 2026 — the extension auto-detects either:
+- **Cursor CLI** available to the Extension Host. The CLI was renamed from `cursor` to `agent` in 2026 — the extension auto-detects either:
   - **New CLI (recommended):** `curl https://cursor.com/install -fsSL | bash` installs the `agent` binary. Verify with `agent --version`.
   - **Legacy CLI:** in Cursor IDE, `Cmd+Shift+P` > "Install 'cursor' command in PATH". Verify with `cursor --version`.
-  - The extension picks whichever it finds first (`agent` preferred). Override via the `i18nSync.cursorCliPath` setting if needed.
+  - The extension picks whichever it finds first (`agent` preferred). If neither is on `PATH`, it walks known install dirs (`~/.cursor/cli/`, `/opt/homebrew/bin/`, `/Applications/Cursor.app/.../bin/`, etc.) — this catches the **macOS GUI-launch case** where `which agent` works in your terminal but the Extension Host can't see it.
+  - If detection still fails, run **`Cmd+Shift+P` &rarr; `i18n: Detect Cursor CLI`** to see a full diagnostic report and persist a discovered absolute path to `i18nSync.cursorCliPath`.
 - **Authenticated Cursor CLI** *(one-time, required before first sync)*
   - Run `agent login` (new CLI) or `cursor login` (legacy CLI) in your terminal. This opens a browser to sign in to your Cursor account. Without this step the extension's first translation batch fails with an auth error.
   - Quick smoke test that auth works:

@@ -2,7 +2,16 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { detectProjectConfig, ProjectConfig } from './fileHandlers';
-import { translateKeyBatch, createBatches, TranslationBatch, getConfig as getTranslationConfig, clearCliResolutionCache } from './translationEngine';
+import {
+  translateKeyBatch,
+  createBatches,
+  TranslationBatch,
+  getConfig as getTranslationConfig,
+  clearCliResolutionCache,
+  resolveCliWithReport,
+  formatCliResolutionFailureSummary,
+  formatCliResolutionReport,
+} from './translationEngine';
 import { StateManager, SyncState } from './stateManager';
 import { findMissingKeys, mergeSingleLanguage, loadLangContextWithFallback } from './syncUtils';
 import { initAutoSync, disposeAutoSync } from './autoSync';
@@ -39,8 +48,11 @@ export function activate(context: vscode.ExtensionContext): void {
     'i18nSync.syncTranslationsFromContext',
     (uri: vscode.Uri) => runSyncFromUri(uri)
   );
+  const detectCliCmd = vscode.commands.registerCommand('i18nSync.detectCli', () =>
+    runDetectCli()
+  );
 
-  context.subscriptions.push(syncCmd, checkCmd, contextCmd, outputChannel);
+  context.subscriptions.push(syncCmd, checkCmd, contextCmd, detectCliCmd, outputChannel);
 
   // Show/hide status bar based on active editor
   showStatusBarIfRelevant();
@@ -254,6 +266,16 @@ async function runSync(i18nDir: string): Promise<void> {
   }
 
   const translationCfg = getTranslationConfig();
+
+  // Pre-flight: confirm the Cursor CLI is reachable before we touch any
+  // batches. Without this, every batch would independently fail with
+  // `spawn agent ENOENT` and burn 3 retries each, spamming the output
+  // channel and giving the user no actionable info.
+  const cliOk = await preflightCli(translationCfg.cursorCliPath);
+  if (!cliOk) {
+    updateStatusBar('error', 'Cursor CLI not found');
+    return;
+  }
 
   // Log header
   outputChannel.show(true);
@@ -477,6 +499,131 @@ function mergeRemainingTranslations(
 
   stateManager.cleanup();
   outputChannel.appendLine('\nSync complete.');
+}
+
+// ---------------------------------------------------------------------------
+// Cursor CLI detection / preflight
+// ---------------------------------------------------------------------------
+
+/**
+ * Verifies the Cursor CLI is invokable before kicking off a sync. On
+ * failure: dumps the resolution report to the output channel and shows a
+ * single actionable popup. Returns `true` if the CLI is reachable.
+ *
+ * This is the *one* place we surface the missing-CLI error to the user
+ * per sync. Per-batch retries are intentionally suppressed on the
+ * `cli_missing` error type to avoid log spam.
+ */
+async function preflightCli(configuredPath: string): Promise<boolean> {
+  const report = resolveCliWithReport(configuredPath);
+  if (report.resolved) {
+    return true;
+  }
+
+  outputChannel.show(true);
+  logSeparator();
+  outputChannel.appendLine('i18n Sync: Cursor CLI not available — aborting before sync starts.');
+  outputChannel.appendLine(formatCliResolutionFailureSummary(report));
+  outputChannel.appendLine('');
+  for (const line of formatCliResolutionReport(report)) {
+    outputChannel.appendLine(line);
+  }
+  logSeparator();
+
+  const choice = await vscode.window.showErrorMessage(
+    'i18n Sync: Cursor CLI not found. Translations cannot run until it is installed and reachable.',
+    'Detect CLI',
+    'Open Settings',
+    'View Output'
+  );
+  if (choice === 'Detect CLI') {
+    void vscode.commands.executeCommand('i18nSync.detectCli');
+  } else if (choice === 'Open Settings') {
+    void vscode.commands.executeCommand(
+      'workbench.action.openSettings',
+      'i18nSync.cursorCliPath'
+    );
+  } else if (choice === 'View Output') {
+    outputChannel.show(true);
+  }
+  return false;
+}
+
+/**
+ * `i18nSync.detectCli` command handler. Re-runs the CLI resolution from
+ * scratch (cache cleared), dumps the full diagnostic report to the
+ * output channel, and offers to persist a discovered absolute path into
+ * `i18nSync.cursorCliPath` so future runs skip the search.
+ */
+async function runDetectCli(): Promise<void> {
+  outputChannel.show(true);
+  logSeparator();
+  outputChannel.appendLine(`Cursor CLI detection - ${new Date().toLocaleString()}`);
+  logSeparator();
+
+  // Clear cache so the user gets a fresh probe (e.g. they just installed
+  // the CLI and want to confirm the extension can see it).
+  clearCliResolutionCache();
+
+  const cfg = getTranslationConfig();
+  const report = resolveCliWithReport(cfg.cursorCliPath);
+
+  for (const line of formatCliResolutionReport(report)) {
+    outputChannel.appendLine(line);
+  }
+  outputChannel.appendLine('');
+
+  if (!report.resolved) {
+    outputChannel.appendLine(formatCliResolutionFailureSummary(report));
+    const choice = await vscode.window.showErrorMessage(
+      'i18n Sync: Cursor CLI not found. See output channel for full diagnostics.',
+      'Open Settings',
+      'View Install Docs'
+    );
+    if (choice === 'Open Settings') {
+      void vscode.commands.executeCommand(
+        'workbench.action.openSettings',
+        'i18nSync.cursorCliPath'
+      );
+    } else if (choice === 'View Install Docs') {
+      void vscode.env.openExternal(vscode.Uri.parse('https://cursor.com/install'));
+    }
+    return;
+  }
+
+  const cmd = report.resolved.command;
+  const onPath = report.resolved.source.endsWith('-on-path') || report.resolved.source === 'configured';
+
+  if (onPath) {
+    outputChannel.appendLine(
+      `Cursor CLI is reachable as "${cmd}" (source=${report.resolved.source}). No action needed.`
+    );
+    void vscode.window.showInformationMessage(
+      `i18n Sync: Cursor CLI found ("${cmd}"). You're good to go.`
+    );
+    return;
+  }
+
+  // Found via fallback — the binary is not on the Extension Host PATH.
+  // Offer to pin the absolute path into the setting so the user doesn't
+  // depend on our fallback search every sync.
+  outputChannel.appendLine(
+    `Cursor CLI found at: ${cmd}\nThis path is NOT on the Extension Host's PATH — relying on the fallback search every sync.`
+  );
+  const choice = await vscode.window.showInformationMessage(
+    `i18n Sync: Found Cursor CLI at ${cmd} (not on PATH). Save this path to settings so future syncs skip the search?`,
+    'Save Path',
+    'Use Without Saving'
+  );
+  if (choice === 'Save Path') {
+    await vscode.workspace
+      .getConfiguration('i18nSync')
+      .update('cursorCliPath', cmd, vscode.ConfigurationTarget.Global);
+    clearCliResolutionCache();
+    void vscode.window.showInformationMessage(
+      `i18n Sync: Saved cursorCliPath = ${cmd}. Run sync to use it.`
+    );
+  }
 }
 
 // ---------------------------------------------------------------------------

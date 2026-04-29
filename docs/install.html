@@ -304,12 +304,12 @@
   <ul>
     <li><strong>Cursor</strong> (or VS Code 1.85+) installed.</li>
     <li>
-      The <strong>Cursor CLI</strong> on your <code>PATH</code>. The CLI was renamed from <code>cursor</code> to <code>agent</code> in 2026 &mdash; the extension auto-detects either.
+      The <strong>Cursor CLI</strong> reachable from the Extension Host. The CLI was renamed from <code>cursor</code> to <code>agent</code> in 2026 &mdash; the extension auto-detects either.
       <ul>
         <li><strong>New CLI (recommended):</strong> <code>curl https://cursor.com/install -fsSL | bash</code>. Verify with <code>agent --version</code>.</li>
         <li><strong>Legacy CLI:</strong> in Cursor IDE, <kbd>Cmd</kbd> <kbd>Shift</kbd> <kbd>P</kbd> &rarr; <em>"Cursor: Install &lsquo;cursor&rsquo; command in PATH"</em>. Verify with <code>cursor --version</code>.</li>
       </ul>
-      Override the choice via the <code>i18nSync.cursorCliPath</code> setting if needed.
+      <p style="margin-top:.5rem">v1.4.0 also walks known install dirs (<code>~/.cursor/cli/</code>, <code>/opt/homebrew/bin/</code>, <code>/Applications/Cursor.app/&hellip;/bin/</code>) when <code>PATH</code> doesn't have the CLI &mdash; this catches the macOS GUI-launch case where <code>which agent</code> works in your terminal but the Extension Host can't see it. If detection still fails, run <kbd>Cmd</kbd> <kbd>Shift</kbd> <kbd>P</kbd> &rarr; <em>"i18n: Detect Cursor CLI"</em> to see a full diagnostic report and persist a discovered absolute path to <code>i18nSync.cursorCliPath</code>.</p>
     </li>
     <li>
       <strong>An authenticated Cursor CLI session</strong> <span class="pill">required, one-time</span>.
@@ -332,7 +332,7 @@ cursor agent --print --model gemini-3-flash "say hi"</code></pre>
 
   <h2 id="download">1. Download the VSIX</h2>
   <div class="step">
-    <h3><span class="num">1</span> Grab <code>i18n-sync-translations-1.3.2.vsix</code></h3>
+    <h3><span class="num">1</span> Grab <code>i18n-sync-translations-1.4.0.vsix</code></h3>
     <p>Download the file from the <a href="https://github.com/m3nfis/cursor-i18n-sync-translations/releases">GitHub releases page</a>, or directly from the repo root if shared internally.</p>
   </div>
 
@@ -348,10 +348,10 @@ cursor agent --print --model gemini-3-flash "say hi"</code></pre>
       <h4>Option B &mdash; CLI</h4>
       <p>From the directory containing the file:</p>
       <pre><code># New CLI
-agent --install-extension i18n-sync-translations-1.3.2.vsix
+agent --install-extension i18n-sync-translations-1.4.0.vsix
 
 # Legacy CLI
-cursor --install-extension i18n-sync-translations-1.3.2.vsix</code></pre>
+cursor --install-extension i18n-sync-translations-1.4.0.vsix</code></pre>
     </div>
   </div>
 
@@ -421,7 +421,7 @@ cursor --install-extension i18n-sync-translations-1.3.2.vsix</code></pre>
       <tr><td><code>i18nSync.maxRetries</code></td><td><code>3</code></td><td>Per-batch retries with exponential backoff.</td></tr>
       <tr><td><code>i18nSync.autoSync</code></td><td><code>false</code></td><td>Background watcher: re-translates on save.</td></tr>
       <tr><td><code>i18nSync.autoSyncIntervalMinutes</code></td><td><code>3</code></td><td>Debounce before background sync triggers.</td></tr>
-      <tr><td><code>i18nSync.cursorCliPath</code></td><td><code>auto</code></td><td>Auto-detects the new <code>agent</code> binary first, falls back to legacy <code>cursor</code>. Set explicitly to <code>agent</code>, <code>cursor</code>, or an absolute path to override.</td></tr>
+      <tr><td><code>i18nSync.cursorCliPath</code></td><td><code>auto</code></td><td>v1.4.0: probes <code>agent</code>/<code>cursor</code> on <code>PATH</code>, then walks known install dirs (<code>~/.cursor/cli/</code>, <code>/opt/homebrew/bin/</code>, <code>/Applications/Cursor.app/&hellip;/bin/</code>). Run <em>"i18n: Detect Cursor CLI"</em> to inspect the resolution. Set explicitly to <code>agent</code>, <code>cursor</code>, or an absolute path to override.</td></tr>
       <tr><td><code>i18nSync.cliTimeoutSeconds</code></td><td><code>180</code></td><td>Per-batch CLI timeout. Bumped from 90 to 180 in v1.3.2 — Cursor CLI/model backend latency frequently exceeds 90&thinsp;s for a single call.</td></tr>
       <tr><td><code>i18nSync.debugMode</code></td><td><code>false</code></td><td>Verbose logging: live stdout/stderr streaming, PID, heartbeat every 15&thinsp;s. Enable when a sync gets stuck.</td></tr>
     </tbody>
@@ -429,8 +429,19 @@ cursor --install-extension i18n-sync-translations-1.3.2.vsix</code></pre>
 
   <h2 id="troubleshoot">Troubleshooting</h2>
 
-  <h3>"Cursor CLI not found"</h3>
-  <p>Install the new CLI with <code>curl https://cursor.com/install -fsSL | bash</code> and verify with <code>agent --version</code>. If you prefer the legacy CLI, run <kbd>Cmd</kbd> <kbd>Shift</kbd> <kbd>P</kbd> &rarr; <em>"Cursor: Install &lsquo;cursor&rsquo; command in PATH"</em>, restart your terminal and Cursor, then verify with <code>cursor --version</code>. The extension auto-detects either; if you have a custom install location, set <code>i18nSync.cursorCliPath</code> to the absolute path.</p>
+  <h3>"Cursor CLI not found" / <code>spawn agent ENOENT</code></h3>
+  <p>If <code>which agent</code> works in your terminal but the extension still says it can't find the CLI, the Extension Host has a different <code>PATH</code> than your shell. On macOS, GUI apps launched from Spotlight/Finder/Dock inherit a minimal <code>PATH</code> from <code>launchd</code> that does <strong>not</strong> include shell additions from <code>~/.zshrc</code> / <code>~/.bashrc</code> (e.g. <code>/opt/homebrew/bin</code>, <code>~/.cursor/cli</code>, <code>~/.local/bin</code>).</p>
+  <p>Open the command palette (<kbd>Cmd</kbd> <kbd>Shift</kbd> <kbd>P</kbd>) and run <em>"i18n: Detect Cursor CLI"</em>. The output channel will show:</p>
+  <ul>
+    <li>The configured value of <code>cursorCliPath</code> and platform.</li>
+    <li>Every probe attempt with its error code (<code>ENOENT</code>, <code>EACCES</code>, exit code, &hellip;).</li>
+    <li>The exact effective <code>PATH</code> the Extension Host has, one entry per line.</li>
+    <li>Every fallback location the extension checked and whether the file exists on disk.</li>
+    <li>The final resolved binary, or a remediation hint.</li>
+  </ul>
+  <p>If the CLI was found at an absolute path (i.e. via the fallback search), the popup offers <strong>Save Path</strong> &mdash; that writes the absolute path into <code>i18nSync.cursorCliPath</code> so future syncs go straight to it without re-walking the search list.</p>
+  <p>If nothing was found, install the CLI (<code>curl https://cursor.com/install -fsSL | bash</code>) or set <code>i18nSync.cursorCliPath</code> to the absolute path returned by <code>which agent</code> in your terminal.</p>
+  <p><strong>v1.4.0 also pre-flights this check before every sync</strong>, so a missing CLI now produces a single popup with <em>"Detect CLI / Open Settings / View Output"</em> instead of N batches &times; <code>maxRetries</code> identical <code>ENOENT</code> errors in the output channel.</p>
 
   <h3>First sync fails with an authentication / login error</h3>
   <p>The Cursor CLI needs to be signed in before <code>agent</code> (or legacy <code>cursor agent</code>) will respond. Run <code>agent login</code> (new CLI) or <code>cursor login</code> (legacy CLI) in any terminal, complete the browser sign-in, then verify with <code>agent --print --model gemini-3-flash "say hi"</code> (or <code>cursor agent --print --model gemini-3-flash "say hi"</code>). Re-run the matching <code>login</code> command whenever your session expires.</p>

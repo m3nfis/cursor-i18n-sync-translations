@@ -5,6 +5,19 @@ All notable changes to the **i18n Sync Translations** extension will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2026-04-29
+
+### Added
+
+- **Robust Cursor CLI detection.** `cursorCliPath: auto` no longer relies solely on `PATH`. After probing `agent` and `cursor` on `PATH`, the extension now walks a list of known install locations — `~/.cursor/cli/`, `~/.local/bin/`, `/opt/homebrew/bin/`, `/usr/local/bin/`, `/Applications/Cursor.app/Contents/Resources/app/bin/`, plus the equivalents on Linux and Windows — and uses any `agent`/`cursor` binary it finds. Fixes the macOS GUI-launch gotcha where `which agent` works in the user's shell but the Extension Host (which inherits a minimal launchd PATH) cannot see it.
+- **`i18n: Detect Cursor CLI` command.** New command-palette entry that re-runs the resolution from scratch and prints a full diagnostic report to the output channel: configured path, every probe attempt with its error code, the effective PATH (one entry per line), every fallback location checked, and the final resolved binary. If the CLI is found at an absolute path (i.e. not on the Extension Host's PATH), the user is offered a one-click "Save Path" action that persists it into `i18nSync.cursorCliPath` so future runs skip the search.
+- **Pre-flight check before every sync.** `i18n: Sync Translations` now resolves the CLI *before* it builds any batches. On failure, the user gets a single actionable popup ("Detect CLI / Open Settings / View Output") plus a structured report in the output channel — instead of N batches × `maxRetries` identical `spawn agent ENOENT` lines.
+
+### Changed
+
+- **No retries on `cli_missing`.** Spawn-time `ENOENT` is now classified as `cli_missing` and short-circuits the retry loop (retrying with the same PATH won't change the outcome). The CLI resolution cache is invalidated automatically so the next sync re-probes (e.g. after the user installs the CLI mid-session).
+- **Auto-sync respects the new pre-flight.** Background auto-sync also bails out early when the CLI is unreachable, but stays silent (no popups) — it just logs once to the output channel and waits for the next tick. This keeps the foreground sync as the only place the user gets prompted.
+
 ## [1.3.2] - 2026-04-29
 
 ### Changed

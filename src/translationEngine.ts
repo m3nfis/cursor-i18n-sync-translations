@@ -1,4 +1,6 @@
 import { spawn, spawnSync } from 'node:child_process';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { enrichBatchWithContext, buildYamlPrompt, getKeyOrderFromContext } from './contextInference';
@@ -71,7 +73,36 @@ export function getConfig(): TranslationConfig {
 export interface ResolvedCli {
   command: string;
   useAgentSubcommand: boolean;
-  source: 'configured' | 'auto-detected-agent' | 'auto-detected-cursor' | 'fallback';
+  source:
+    | 'configured'
+    | 'auto-detected-agent-on-path'
+    | 'auto-detected-cursor-on-path'
+    | 'auto-detected-agent-fallback'
+    | 'auto-detected-cursor-fallback';
+}
+
+/**
+ * Per-attempt diagnostic record used in {@link CliResolutionReport}. The
+ * `mode` distinguishes a bare command name (relies on `PATH`) from an
+ * absolute fallback path we tested explicitly.
+ */
+export interface CliResolutionAttempt {
+  command: string;
+  mode: 'path-probe' | 'absolute-fallback';
+  ok: boolean;
+  errorCode?: string;
+  errorMessage?: string;
+  exitCode?: number;
+}
+
+/** Full structured result of resolving the CLI — used for diagnostics. */
+export interface CliResolutionReport {
+  resolved: ResolvedCli | null;
+  attempts: CliResolutionAttempt[];
+  configuredPath: string;
+  effectivePath: string;
+  platform: NodeJS.Platform;
+  searchedFallbackLocations: string[];
 }
 
 const PROBE_TIMEOUT_MS = 5_000;
@@ -81,22 +112,39 @@ const PROBE_TIMEOUT_MS = 5_000;
  * batch. Keyed by the configured value so changes to the setting take
  * effect on the next sync.
  */
-const cliResolutionCache = new Map<string, ResolvedCli>();
+const cliResolutionCache = new Map<string, CliResolutionReport>();
 
 /** Public hook used by tests / settings change listeners to drop the cache. */
 export function clearCliResolutionCache(): void {
   cliResolutionCache.clear();
 }
 
-function probeCommand(cmd: string): boolean {
+function probeCommandWithDetail(cmd: string): {
+  ok: boolean;
+  errorCode?: string;
+  errorMessage?: string;
+  exitCode?: number;
+} {
   try {
     const result = spawnSync(cmd, ['--version'], {
-      stdio: 'ignore',
+      stdio: ['ignore', 'pipe', 'pipe'],
       timeout: PROBE_TIMEOUT_MS,
     });
-    return result.status === 0 && !result.error;
-  } catch {
-    return false;
+    if (result.error) {
+      const err = result.error as NodeJS.ErrnoException;
+      return { ok: false, errorCode: err.code, errorMessage: err.message };
+    }
+    if (result.status !== 0) {
+      const stderrSnippet = (result.stderr?.toString() ?? '').trim().slice(0, 200);
+      return {
+        ok: false,
+        exitCode: result.status ?? undefined,
+        errorMessage: stderrSnippet || `exited with status ${result.status}`,
+      };
+    }
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, errorMessage: e instanceof Error ? e.message : String(e) };
   }
 }
 
@@ -112,43 +160,251 @@ function inferUseAgentSubcommand(cmd: string): boolean {
 }
 
 /**
- * Resolves the CLI command to invoke based on the configured
- * `cursorCliPath` setting. Supports:
+ * Common locations where the Cursor CLI gets installed. We check these
+ * after `PATH` because GUI-launched apps on macOS (Spotlight/Finder/Dock)
+ * inherit a minimal PATH from launchd that does NOT include shell
+ * additions like `/opt/homebrew/bin` or `~/.cursor/cli`. So `which agent`
+ * may work in the user's terminal yet fail from inside the Extension Host.
  *
- *   - `auto`    — probe `agent` first, fall back to `cursor`.
- *   - `agent`   — new standalone CLI (no subcommand).
- *   - `cursor`  — legacy CLI (uses `agent` subcommand).
- *   - any other path — basename decides which mode to use.
+ * Order matters — we prefer per-user installs over system-wide ones, and
+ * `agent` over the legacy `cursor`.
  */
-export function resolveCliCommand(configuredPath: string): ResolvedCli {
+function getCommonCliLocations(): string[] {
+  const home = os.homedir();
+
+  // Per-user install dirs Cursor uses for the new CLI — checked on every platform.
+  const userLocations = [
+    path.join(home, '.cursor', 'cli', 'agent'),
+    path.join(home, '.local', 'bin', 'agent'),
+  ];
+
+  if (process.platform === 'darwin') {
+    return [
+      ...userLocations,
+      '/opt/homebrew/bin/agent',
+      '/usr/local/bin/agent',
+      '/Applications/Cursor.app/Contents/Resources/app/bin/agent',
+      // Legacy `cursor` binary fallbacks
+      path.join(home, '.cursor', 'cli', 'cursor'),
+      '/opt/homebrew/bin/cursor',
+      '/usr/local/bin/cursor',
+      '/Applications/Cursor.app/Contents/Resources/app/bin/cursor',
+    ];
+  }
+
+  if (process.platform === 'linux') {
+    return [
+      ...userLocations,
+      '/usr/local/bin/agent',
+      '/usr/bin/agent',
+      path.join(home, '.cursor', 'cli', 'cursor'),
+      '/usr/local/bin/cursor',
+      '/usr/bin/cursor',
+    ];
+  }
+
+  if (process.platform === 'win32') {
+    const localAppData = process.env.LOCALAPPDATA || path.join(home, 'AppData', 'Local');
+    const programs = path.join(localAppData, 'Programs', 'cursor', 'resources', 'app', 'bin');
+    return [
+      ...userLocations,
+      path.join(programs, 'agent.cmd'),
+      path.join(programs, 'agent.exe'),
+      path.join(programs, 'cursor.cmd'),
+      path.join(programs, 'cursor.exe'),
+    ];
+  }
+
+  return userLocations;
+}
+
+/**
+ * Resolves the CLI command to invoke and returns a full diagnostic
+ * report. `resolved` is `null` if no working CLI was found.
+ *
+ * Resolution order for `auto`:
+ *
+ *   1. Probe `agent` on `PATH` (--version).
+ *   2. Probe `cursor` on `PATH`.
+ *   3. Walk a list of common install paths and probe each one that exists
+ *      on disk (catches the macOS GUI-app PATH gotcha).
+ */
+export function resolveCliWithReport(configuredPath: string): CliResolutionReport {
   const cached = cliResolutionCache.get(configuredPath);
   if (cached) {
     return cached;
   }
 
-  let resolved: ResolvedCli;
+  const report: CliResolutionReport = {
+    resolved: null,
+    attempts: [],
+    configuredPath,
+    effectivePath: process.env.PATH ?? '',
+    platform: process.platform,
+    searchedFallbackLocations: [],
+  };
 
-  if (configuredPath === 'auto') {
-    if (probeCommand('agent')) {
-      resolved = { command: 'agent', useAgentSubcommand: false, source: 'auto-detected-agent' };
-    } else if (probeCommand('cursor')) {
-      resolved = { command: 'cursor', useAgentSubcommand: true, source: 'auto-detected-cursor' };
-    } else {
-      // Neither is on PATH — fall back to `agent` so the spawn error
-      // reflects the new binary name (which is what the user is most
-      // likely missing on a fresh install).
-      resolved = { command: 'agent', useAgentSubcommand: false, source: 'fallback' };
+  if (configuredPath !== 'auto') {
+    const result = probeCommandWithDetail(configuredPath);
+    report.attempts.push({ command: configuredPath, mode: 'path-probe', ...result });
+    if (result.ok) {
+      report.resolved = {
+        command: configuredPath,
+        useAgentSubcommand: inferUseAgentSubcommand(configuredPath),
+        source: 'configured',
+      };
     }
-  } else {
-    resolved = {
-      command: configuredPath,
-      useAgentSubcommand: inferUseAgentSubcommand(configuredPath),
-      source: 'configured',
-    };
+    cliResolutionCache.set(configuredPath, report);
+    return report;
   }
 
-  cliResolutionCache.set(configuredPath, resolved);
-  return resolved;
+  // Step 1: PATH probes
+  for (const cmd of ['agent', 'cursor'] as const) {
+    const result = probeCommandWithDetail(cmd);
+    report.attempts.push({ command: cmd, mode: 'path-probe', ...result });
+    if (result.ok) {
+      report.resolved = {
+        command: cmd,
+        useAgentSubcommand: cmd === 'cursor',
+        source: cmd === 'agent' ? 'auto-detected-agent-on-path' : 'auto-detected-cursor-on-path',
+      };
+      cliResolutionCache.set(configuredPath, report);
+      return report;
+    }
+  }
+
+  // Step 2: known install locations (only probe ones that actually exist
+  // on disk — saves a bunch of pointless ENOENTs in the report).
+  const locations = getCommonCliLocations();
+  report.searchedFallbackLocations = locations;
+  for (const fp of locations) {
+    if (!fs.existsSync(fp)) {
+      continue;
+    }
+    const result = probeCommandWithDetail(fp);
+    report.attempts.push({ command: fp, mode: 'absolute-fallback', ...result });
+    if (result.ok) {
+      const isAgentBinary = path.basename(fp).toLowerCase().startsWith('agent');
+      report.resolved = {
+        command: fp,
+        useAgentSubcommand: !isAgentBinary,
+        source: isAgentBinary ? 'auto-detected-agent-fallback' : 'auto-detected-cursor-fallback',
+      };
+      cliResolutionCache.set(configuredPath, report);
+      return report;
+    }
+  }
+
+  cliResolutionCache.set(configuredPath, report);
+  return report;
+}
+
+/**
+ * Backwards-compatible thin wrapper. Returns a placeholder so legacy call
+ * sites still get a `ResolvedCli` even when nothing is installed — but the
+ * caller is expected to have already failed-fast via {@link resolveCliWithReport}
+ * during the pre-flight check.
+ */
+export function resolveCliCommand(configuredPath: string): ResolvedCli {
+  const report = resolveCliWithReport(configuredPath);
+  return (
+    report.resolved ?? {
+      command: 'agent',
+      useAgentSubcommand: false,
+      source: 'auto-detected-agent-fallback',
+    }
+  );
+}
+
+/**
+ * One-line user-facing summary suitable for a popup / status message.
+ */
+export function formatCliResolutionFailureSummary(report: CliResolutionReport): string {
+  if (report.configuredPath !== 'auto') {
+    const last = report.attempts[report.attempts.length - 1];
+    const reason = last?.errorCode
+      ? `${last.errorCode}: ${last.errorMessage ?? ''}`.trim()
+      : (last?.errorMessage ?? 'probe failed');
+    return `Cursor CLI not found at configured path "${report.configuredPath}" (${reason}). Update i18nSync.cursorCliPath, or set it to "auto" to autodetect.`;
+  }
+  return `Cursor CLI not found. Probed PATH for 'agent' and 'cursor' and ${report.searchedFallbackLocations.length} common install location(s). Run the "i18n: Detect Cursor CLI" command, or set i18nSync.cursorCliPath manually.`;
+}
+
+/**
+ * Detailed multi-line report intended for the output channel. Includes
+ * the probed PATH, every attempt with its error code, and platform-aware
+ * remediation hints (notably the macOS GUI-app PATH gotcha).
+ */
+export function formatCliResolutionReport(report: CliResolutionReport): string[] {
+  const pathEntries = report.effectivePath.split(path.delimiter).filter(Boolean);
+
+  const pathLines = [
+    `  Effective PATH (${pathEntries.length} entries):`,
+    ...pathEntries.map(dir => `    ${dir}`),
+  ];
+
+  const attemptLines = [
+    `  Probe attempts (${report.attempts.length}):`,
+    ...report.attempts.map(a => formatAttemptLine(a)),
+  ];
+
+  const fallbackLines =
+    report.searchedFallbackLocations.length === 0
+      ? []
+      : [
+          `  Fallback locations checked:`,
+          ...report.searchedFallbackLocations.map(fp => {
+            const exists = fs.existsSync(fp);
+            return `    ${exists ? '[exists]' : '[absent]'} ${fp}`;
+          }),
+        ];
+
+  const resolutionLines = report.resolved
+    ? [
+        `  Resolved: ${report.resolved.command}  (source=${report.resolved.source}, useAgentSubcommand=${report.resolved.useAgentSubcommand})`,
+      ]
+    : [`  Resolved: <none>`, '', ...buildRemediationHint(report.platform)];
+
+  return [
+    `CLI resolution report (cursorCliPath="${report.configuredPath}", platform=${report.platform})`,
+    ...pathLines,
+    ...attemptLines,
+    ...fallbackLines,
+    ...resolutionLines,
+  ];
+}
+
+function formatAttemptLine(a: CliResolutionAttempt): string {
+  if (a.ok) {
+    return `    OK    [${a.mode}] ${a.command}`;
+  }
+  const reasonParts: string[] = [];
+  if (a.errorCode) {
+    reasonParts.push(a.errorCode);
+  }
+  if (a.errorMessage) {
+    reasonParts.push(a.errorMessage);
+  } else if (a.exitCode !== undefined) {
+    reasonParts.push(`exit ${a.exitCode}`);
+  }
+  const reason = reasonParts.join(' — ').slice(0, 240) || 'unknown error';
+  return `    FAIL  [${a.mode}] ${a.command} — ${reason}`;
+}
+
+function buildRemediationHint(platform: NodeJS.Platform): string[] {
+  if (platform === 'darwin') {
+    return [
+      `  Hint: On macOS, GUI apps launched from Spotlight/Finder/Dock inherit a minimal PATH`,
+      `        from launchd that does NOT include shell additions from ~/.zshrc / ~/.bashrc.`,
+      `        If \`which agent\` works in your terminal but the extension can't find it:`,
+      `          (a) launch Cursor from a terminal so it inherits your shell PATH, or`,
+      `          (b) set i18nSync.cursorCliPath to the absolute path returned by \`which agent\`.`,
+    ];
+  }
+  return [
+    `  Hint: install the CLI with: curl https://cursor.com/install -fsSL | bash`,
+    `        or set i18nSync.cursorCliPath to an absolute path.`,
+  ];
 }
 
 // ---------------------------------------------------------------------------
@@ -240,7 +496,15 @@ function buildCliArgs(cfg: TranslationConfig, cli: ResolvedCli, prompt: string):
 // ---------------------------------------------------------------------------
 
 interface CliError {
-  type: 'cancelled' | 'fatal_limit' | 'rate_limit' | 'retryable_error' | 'bad_response' | 'timeout' | 'error';
+  type:
+    | 'cancelled'
+    | 'fatal_limit'
+    | 'rate_limit'
+    | 'retryable_error'
+    | 'bad_response'
+    | 'timeout'
+    | 'cli_missing'
+    | 'error';
   message: string;
   response?: string;
 }
@@ -278,7 +542,22 @@ export async function translateKeyBatch(
     return { success: false, data: batch };
   }
 
-  const cli = resolveCliCommand(cfg.cursorCliPath);
+  const cliReport = resolveCliWithReport(cfg.cursorCliPath);
+  if (!cliReport.resolved) {
+    // Fail fast — retrying with the same PATH/setting won't help. The
+    // pre-flight check in extension.ts/autoSync.ts is the primary gate;
+    // this is the safety net for direct callers (e.g. tests or future
+    // entry points) that skip pre-flight.
+    const summary = formatCliResolutionFailureSummary(cliReport);
+    output.appendLine(`  [Batch ${batchId} | ${targetLang}] ${summary}`);
+    if (cfg.debugMode) {
+      for (const line of formatCliResolutionReport(cliReport)) {
+        output.appendLine(`    ${line}`);
+      }
+    }
+    return { success: false, data: batch };
+  }
+  const cli = cliReport.resolved;
   if (cfg.debugMode) {
     output.appendLine(
       `[DEBUG] Batch ${batchId} CLI resolved: command=${cli.command}, useAgentSubcommand=${cli.useAgentSubcommand} (source=${cli.source})`
@@ -323,6 +602,16 @@ export async function translateKeyBatch(
 
       if (err.type === 'fatal_limit') {
         vscode.window.showErrorMessage(`i18n Sync: API quota limit reached. ${err.message}`);
+        return { success: false, data: batch };
+      }
+
+      if (err.type === 'cli_missing') {
+        // No point retrying — PATH won't change between attempts. Caller
+        // (extension.ts / autoSync.ts) is responsible for surfacing the
+        // popup once per sync via the pre-flight check.
+        output.appendLine(
+          `  [Batch ${batchId} | ${targetLang}] Aborting: Cursor CLI not available. Run "i18n: Detect Cursor CLI" or set i18nSync.cursorCliPath.`
+        );
         return { success: false, data: batch };
       }
 
@@ -519,9 +808,19 @@ function executeCli(
       cleanup();
       clearTimeout(timeout);
       cancelListener?.dispose();
-      // ENOENT, EACCES, etc. — surface them clearly so users see exactly
-      // which binary is missing (parseCursorError already handles ENOENT).
+      // ENOENT means the binary vanished between pre-flight and spawn (or
+      // pre-flight was skipped). Either way, retrying with the same PATH
+      // is hopeless — surface it as `cli_missing` so the outer loop bails
+      // out instead of burning 3 attempts producing identical noise.
       output.appendLine(`${tag} spawn error: ${err.message}`);
+      const errno = (err as NodeJS.ErrnoException).code;
+      if (errno === 'ENOENT' || /\bENOENT\b/.test(err.message)) {
+        // Drop the cache so the next sync re-probes (e.g. user installed
+        // the CLI mid-session).
+        clearCliResolutionCache();
+        reject({ type: 'cli_missing', message: parseCursorError(err.message) } as CliError);
+        return;
+      }
       reject({ type: 'error', message: parseCursorError(err.message) } as CliError);
     });
 

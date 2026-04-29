@@ -2,7 +2,7 @@
   "name": "i18n-sync-translations",
   "displayName": "i18n Sync Translations",
   "description": "Automatically detect missing i18n translation keys and sync them across all language files using the Cursor CLI. Supports JSON and Java .properties formats.",
-  "version": "1.3.2",
+  "version": "1.4.0",
   "publisher": "GogusExtremus",
   "license": "MIT",
   "icon": "icon.png",
@@ -48,6 +48,11 @@
         "command": "i18nSync.syncTranslationsFromContext",
         "title": "Sync Translations",
         "icon": "$(globe)"
+      },
+      {
+        "command": "i18nSync.detectCli",
+        "title": "i18n: Detect Cursor CLI",
+        "icon": "$(search-view-icon)"
       }
     ],
     "menus": {
@@ -169,7 +174,7 @@
         "i18nSync.cursorCliPath": {
           "type": "string",
           "default": "auto",
-          "markdownDescription": "Path or name of the Cursor CLI executable.\n\n- `auto` *(default)* — auto-detect: prefers the new `agent` binary, falls back to the legacy `cursor` binary.\n- `agent` — force the **new** Cursor CLI (renamed in 2026, invoked as `agent --print ...`).\n- `cursor` — force the **legacy** CLI (invoked as `cursor agent --print ...`).\n- An absolute path — point at a custom install. The basename decides whether the `agent` subcommand is used (`.../agent` ⇒ no subcommand, anything else ⇒ legacy mode)."
+          "markdownDescription": "Path or name of the Cursor CLI executable.\n\n- `auto` *(default)* — probe `agent` and `cursor` on `PATH`, then fall back to common install locations (`~/.cursor/cli/`, `/opt/homebrew/bin`, `/Applications/Cursor.app/.../bin`, etc.). Catches the macOS GUI-app PATH gotcha where Cursor launched from Spotlight/Dock can't see binaries from `~/.zshrc`.\n- `agent` — force the **new** Cursor CLI (renamed in 2026, invoked as `agent --print ...`).\n- `cursor` — force the **legacy** CLI (invoked as `cursor agent --print ...`).\n- An absolute path — point at a custom install. The basename decides whether the `agent` subcommand is used (`.../agent` ⇒ no subcommand, anything else ⇒ legacy mode).\n\n**Tip:** run the **`i18n: Detect Cursor CLI`** command from the command palette to print a full diagnostic report and persist a discovered absolute path."
         },
         "i18nSync.cliTimeoutSeconds": {
           "type": "number",

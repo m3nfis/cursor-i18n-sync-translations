@@ -1,7 +1,13 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { detectProjectConfig } from './fileHandlers';
-import { translateKeyBatch, createBatches, getConfig as getTranslationConfig } from './translationEngine';
+import {
+  translateKeyBatch,
+  createBatches,
+  getConfig as getTranslationConfig,
+  resolveCliWithReport,
+  formatCliResolutionFailureSummary,
+} from './translationEngine';
 import { StateManager } from './stateManager';
 import { findMissingKeys, mergeSingleLanguage, loadLangContextWithFallback } from './syncUtils';
 
@@ -143,10 +149,24 @@ async function runBackgroundSync(i18nDir: string): Promise<void> {
     return;
   }
 
+  const translationCfg = getTranslationConfig();
+
+  // Pre-flight: confirm the Cursor CLI is reachable. Auto-sync is meant
+  // to be silent — we deliberately do NOT show a popup here. We log to
+  // the output channel once and skip until the next tick. The interactive
+  // sync (i18n: Sync Translations) is the right place to surface the
+  // missing-CLI error to the user.
+  const cliReport = resolveCliWithReport(translationCfg.cursorCliPath);
+  if (!cliReport.resolved) {
+    outputChannel.appendLine(
+      `[Auto-Sync] Skipping: ${formatCliResolutionFailureSummary(cliReport)}`
+    );
+    return;
+  }
+
   isRunning = true;
   cancellationSource = new vscode.CancellationTokenSource();
 
-  const translationCfg = getTranslationConfig();
   outputChannel.appendLine(
     `[Auto-Sync] Starting background sync: ${totalMissing} missing key(s), model: ${translationCfg.model || '(default)'}`
   );
