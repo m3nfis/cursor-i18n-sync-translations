@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { I18N_JSON_FILE_REGEX, MESSAGES_PROPERTIES_FILE_REGEX } from './localeUtils';
+import { flattenJson, unflattenJson } from './jsonNesting';
 
 /**
  * Describes a detected i18n project layout (JSON or Java Properties).
@@ -38,34 +39,79 @@ export interface ProjectConfig {
 // JSON helpers
 // ---------------------------------------------------------------------------
 
-/** Reads a JSON i18n file. Returns `null` if the file is missing or invalid. */
+/**
+ * Reads a JSON i18n file and returns a flat dotted-key map. Nested
+ * objects in the file are transparently flattened so the rest of the
+ * extension can keep treating translations as `Record<string, string>`.
+ * Per-leaf shape information (which leaves came from nested objects vs
+ * literal flat dotted keys) is recovered separately at write time via
+ * {@link getJsonShape}. Returns `null` if the file is missing or invalid.
+ */
 export function readJson(filePath: string): Record<string, string> | null {
   try {
     if (!fs.existsSync(filePath)) {
       return null;
     }
     const raw = fs.readFileSync(filePath, 'utf8');
-    return JSON.parse(raw);
+    const parsed = JSON.parse(raw) as unknown;
+    return flattenJson(parsed).flat;
   } catch {
     return null;
   }
 }
 
-/** Writes a flat key/value object as pretty-printed JSON. */
-export function writeJson(filePath: string, data: Record<string, string>): void {
-  const content = JSON.stringify(data, null, 2) + '\n';
+/**
+ * Returns the set of flat dotted keys whose value originated from a
+ * nested object in the file (vs a literal top-level dotted string key).
+ * Empty Set when the file is missing, invalid, or fully flat.
+ *
+ * Used at write time to reconstitute the per-leaf shape so a file that
+ * mixes both styles round-trips losslessly. Cheap to call (a single
+ * JSON parse + tree walk); not cached because i18n files are small and
+ * the read happens at most a few times per sync.
+ */
+export function getJsonShape(filePath: string): Set<string> {
+  try {
+    if (!fs.existsSync(filePath)) {
+      return new Set<string>();
+    }
+    const raw = fs.readFileSync(filePath, 'utf8');
+    const parsed = JSON.parse(raw) as unknown;
+    return flattenJson(parsed).nestedKeys;
+  } catch {
+    return new Set<string>();
+  }
+}
+
+/**
+ * Writes a flat dotted-key map as pretty-printed JSON. If `nestedKeys`
+ * is provided, leaves in that set are reconstituted as nested objects;
+ * leaves not in the set stay as literal flat dotted keys. Pass an empty
+ * Set (or omit `nestedKeys`) to force a fully flat output.
+ */
+export function writeJson(
+  filePath: string,
+  data: Record<string, string>,
+  nestedKeys?: Set<string>
+): void {
+  const out =
+    nestedKeys && nestedKeys.size > 0 ? unflattenJson(data, nestedKeys) : data;
+  const content = JSON.stringify(out, null, 2) + '\n';
   fs.writeFileSync(filePath, content, 'utf8');
 }
 
 /**
- * Merges `newTranslations` into `existingData`, sorts keys to match
- * the English key order, and writes the result.
+ * Merges `newTranslations` into `existingData`, sorts keys to match the
+ * English key order, and writes the result preserving the EN file's
+ * per-leaf nested/flat shape so a language file always mirrors the
+ * source structure. `enFilePath` is used as the shape source of truth.
  */
 function mergeAndWriteJson(
   filePath: string,
   existingData: Record<string, string>,
   newTranslations: Record<string, string>,
-  enKeys: string[]
+  enKeys: string[],
+  enFilePath: string
 ): void {
   const combined = { ...existingData, ...newTranslations };
   const sorted: Record<string, string> = {};
@@ -83,7 +129,12 @@ function mergeAndWriteJson(
     }
   }
 
-  writeJson(filePath, sorted);
+  // Mirror EN's shape unconditionally. If the user has a hard reason to
+  // keep a language file in a different shape than EN, they can
+  // post-process; the principle of least surprise is "all locale files
+  // look structurally the same as the source".
+  const shape = getJsonShape(enFilePath);
+  writeJson(filePath, sorted, shape);
 }
 
 // ---------------------------------------------------------------------------
@@ -289,7 +340,11 @@ export function detectProjectConfig(i18nDir: string): ProjectConfig | null {
       },
       getLangFilePath: (lang) => path.join(i18nDir, `i18n-${lang}.json`),
       readFile: readJson,
-      mergeTranslations: mergeAndWriteJson,
+      // Wrap mergeAndWriteJson to close over the EN file path so it can
+      // recover the per-leaf nested/flat shape at write time without
+      // changing the public `mergeTranslations` interface.
+      mergeTranslations: (filePath, existingData, newTranslations, enKeys) =>
+        mergeAndWriteJson(filePath, existingData, newTranslations, enKeys, jsonPath),
     };
   }
 

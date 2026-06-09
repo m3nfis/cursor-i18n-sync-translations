@@ -106,6 +106,29 @@ src/assets/i18n/
   ...
 ```
 
+**Both flat dotted keys and nested objects are supported, even in the same file.** The extension preserves each leaf's original shape on write, so a file like the one below round-trips losslessly:
+
+```jsonc
+{
+  // Flat dotted top-level keys
+  "activity.DocumentAdded.label": "Signature document added",
+  "validation.invalidFormat.sub": "Invalid format supplied for field",
+
+  // Nested object structure (react-i18next / vue-i18n / formatjs style)
+  "agreements": {
+    "actions": {
+      "title": "Actions",
+      "addNew": "Add new"
+    },
+    "summary": {
+      "sendingActions": "Sending actions"
+    }
+  }
+}
+```
+
+The EN file is the source of truth for shape: if `agreements.*` is nested in `i18n-en.json`, it is nested in every language file. Per-leaf — so `activity.*` can stay flat while `agreements.*` stays nested in the same file.
+
 ### Java Properties Format
 
 ```

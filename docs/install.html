@@ -276,8 +276,8 @@
     <h1>i18n Sync Translations <span class="pill">Cursor / VS Code</span></h1>
     <p class="sub">A Cursor/VS Code extension that detects missing i18n keys and translates them in batches via the Cursor CLI.</p>
     <div class="badges">
-      <span class="badge">Latest: v1.1.0</span>
-      <span class="badge">JSON + Java Properties</span>
+      <span class="badge">Latest: v1.6.0</span>
+      <span class="badge">JSON (flat + nested) + Java Properties</span>
       <span class="badge">BCP 47 long locales</span>
     </div>
   </header>
@@ -327,12 +327,12 @@ agent --print --model gemini-3-flash "say hi"
 cursor agent --print --model gemini-3-flash "say hi"</code></pre>
       A one-line reply means you're done. An auth / login prompt means you still need to run the matching <code>login</code> command. Re-run it whenever your session expires or you switch Cursor accounts.
     </li>
-    <li>An i18n project with an <code>i18n-en.json</code> (or <code>Messages.properties</code>) source file.</li>
+    <li>An i18n project with an <code>i18n-en.json</code> (or <code>Messages.properties</code>) source file. <strong>v1.6.0:</strong> JSON files can mix flat dotted keys (<code>"agreements.actions.title": "Actions"</code>) and nested objects (<code>"agreements": { "actions": { "title": "Actions" } }</code>) freely &mdash; each leaf's original shape is preserved on write, and language files mirror the EN file's shape automatically.</li>
   </ul>
 
   <h2 id="download">1. Download the VSIX</h2>
   <div class="step">
-    <h3><span class="num">1</span> Grab <code>i18n-sync-translations-1.5.1.vsix</code></h3>
+    <h3><span class="num">1</span> Grab <code>i18n-sync-translations-1.6.0.vsix</code></h3>
     <p>Download the file from the <a href="https://github.com/m3nfis/cursor-i18n-sync-translations/releases">GitHub releases page</a>, or directly from the repo root if shared internally.</p>
   </div>
 
@@ -348,10 +348,10 @@ cursor agent --print --model gemini-3-flash "say hi"</code></pre>
       <h4>Option B &mdash; CLI</h4>
       <p>From the directory containing the file:</p>
       <pre><code># New CLI
-agent --install-extension i18n-sync-translations-1.5.1.vsix
+agent --install-extension i18n-sync-translations-1.6.0.vsix
 
 # Legacy CLI
-cursor --install-extension i18n-sync-translations-1.5.1.vsix</code></pre>
+cursor --install-extension i18n-sync-translations-1.6.0.vsix</code></pre>
     </div>
   </div>
 

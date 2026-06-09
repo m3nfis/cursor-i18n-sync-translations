@@ -5,6 +5,23 @@ All notable changes to the **i18n Sync Translations** extension will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.0] - 2026-06-09
+
+### Added
+
+- **Nested JSON support.** `i18n-en.json` (and language files) can now mix flat dotted-string keys with nested object structures freely — the engine reads either style transparently and preserves each leaf's original shape on write. Real-world files often look like `{ "agreements": { "actions": { "title": "Actions" } }, "activity.DocumentAdded.label": "..." }` (a mix of nested objects and literal flat dotted keys); previously, the nested values were silently coerced to `[object Object]` and shipped to the LLM as garbage. Now `"agreements.actions.title"` is internally treated as a flat dotted key throughout the pipeline (batching, context inference, retries, merging) but is **reconstituted back into its original nested object** when written to the language file. Per-leaf shape tracking — not per-top-level-key — so a single file can mix both styles losslessly.
+- **Shape mirrors EN as source of truth.** Language files always match the EN file's per-leaf shape. If `agreements.*` is nested in `i18n-en.json`, it's nested in `i18n-de.json`. If `activity.*` is flat-dotted in EN, it's flat-dotted in all targets. New language files seeded from EN automatically inherit the same structure.
+
+### Fixed
+
+- **Nested objects no longer break translation.** Before this release, JSON values that were objects (rather than strings) would fail in `findMissingKeys` (which compared only top-level keys, missing every nested leaf), be silently stringified to `"[object Object]"` somewhere in the merge path, or just round-trip with the wrong structure. Files with nested keys are now fully supported end-to-end.
+- **Duplicate-key collision warnings.** When a file has the same path expressed both as a literal flat dotted key AND as a nested path (e.g. `"agreements.actions.title": "Actions"` and `"agreements": { "actions": { "title": "Actions" } }` both present), the read-time flattener now emits a warning per collision and keeps the nested form (which is the conventional canonical representation). Output is deduplicated — your file becomes self-consistent instead of carrying redundant data.
+
+### Internal
+
+- New `src/jsonNesting.ts` module: `flattenJson` (returns `{ flat, nestedKeys, warnings }`) and `unflattenJson` (rebuilds nested structure from a flat map + shape set). Pure functions, no I/O; cheap to call.
+- `fileHandlers.readJson` transparently flattens on read; `writeJson` accepts an optional shape Set; new `getJsonShape` recovers per-leaf shape from a file. `mergeAndWriteJson` is now closed over the EN file path via `detectProjectConfig` so it can derive the shape without changing the public `ProjectConfig.mergeTranslations` interface. Properties handler is untouched (Properties files are inherently flat).
+
 ## [1.5.1] - 2026-04-29
 
 ### Added
